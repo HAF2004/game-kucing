@@ -1,0 +1,6 @@
+{
+  "name": "Kucing Terbang: Petualangan Atap",
+  "description": "Game arcade aksi terbang bergaya Flappy dengan protagonis kucing menggemaskan melintasi atap kota senja.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

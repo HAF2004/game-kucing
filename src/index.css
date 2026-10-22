@@ -45,8 +45,8 @@
 }
 
 /* Keep keyboard controls on pointer devices and touch controls on mobile.
-   The pointer query also handles a narrow desktop window without showing
-   the touch-only power deck. */
+   Pointer detection keeps the touch control available on phones that use
+   the browser's Desktop site mode. */
 .hud-desktop-power {
   display: none;
 }
@@ -55,7 +55,7 @@
   display: flex;
 }
 
-@media (min-width: 48rem), (hover: hover) and (pointer: fine) {
+@media (hover: hover) and (pointer: fine) {
   .hud-desktop-power {
     display: flex;
   }

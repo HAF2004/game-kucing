@@ -48,7 +48,7 @@ export const AchievementsModal: React.FC<AchievementsModalProps> = ({
         <div className="flex items-center justify-between gap-3 pb-3.5 border-b-2 border-[#362452]">
           <div className="min-w-0">
             <div className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-[#FDE68A]">
-              ARSENAL 6 POWER PROGRESI ({unlockedCount} / {achievements.length} TERBUKA)
+              POWER &amp; PENCAPAIAN · {unlockedCount}/{achievements.length}
             </div>
             <h2
               id="achievements-modal-title"
@@ -71,12 +71,12 @@ export const AchievementsModal: React.FC<AchievementsModalProps> = ({
         <div className="mt-3.5 bg-[#181126] border-2 border-[#181425] rounded-2xl p-3 sm:p-3.5">
           <div className="flex flex-wrap items-center justify-between gap-1 mb-2">
             <span className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-[#FDE68A]">
-              3 SKILL AKTIF &amp; 3 SKILL PASIF
+              3 AKTIF · 3 PASIF
             </span>
             <span className="text-[10px] sm:text-[11px] font-semibold text-[#E2E8F0]">
               {canSelectSkill
-                ? 'Pilih 1 Skill Aktif di awal game · Skill Pasif aktif otomatis'
-                : 'Skill Aktif dikunci saat bermain · Kembali ke Layar Utama untuk ganti skill'}
+                ? 'Pilih 1 aktif · pasif otomatis'
+                : 'Skill aktif terkunci saat bermain'}
             </span>
           </div>
 

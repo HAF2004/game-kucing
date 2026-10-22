@@ -73,12 +73,12 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
       aria-modal="true"
       aria-labelledby="leaderboard-modal-title"
     >
-      <div className="w-full max-w-2xl max-h-[90vh] flex flex-col bg-[#231836] border-[4px] border-[#181425] rounded-3xl p-5 md:p-6 shadow-[0_10px_0_#181425] text-[#FFF8E7]">
+      <div className="w-full max-w-2xl max-h-[calc(100dvh-1rem)] sm:max-h-[90vh] flex flex-col bg-[#231836] border-[3px] sm:border-[4px] border-[#181425] rounded-2xl sm:rounded-3xl p-4 sm:p-5 md:p-6 shadow-[0_10px_0_#181425] text-[#FFF8E7]">
         {/* Header */}
         <div className="flex items-center justify-between gap-3 pb-4 border-b-2 border-[#362452]">
           <div>
             <div className="text-[11px] font-extrabold uppercase tracking-widest text-[#FDE68A]">
-              PAPAN PERINGKAT GLOBAL & PROFIL
+              PAPAN PERINGKAT & PROFIL
             </div>
             <h2
               id="leaderboard-modal-title"
@@ -93,7 +93,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
             aria-label="Tutup Papan Peringkat"
             className="px-3.5 py-2 rounded-xl bg-[#362452] hover:bg-[#463068] border-2 border-[#181425] shadow-[0_3px_0_#181425] text-xs font-bold text-[#FFF8E7] cursor-pointer"
           >
-            Tutup [Esc]
+            <span>Tutup</span><span className="hidden sm:inline"> [Esc]</span>
           </button>
         </div>
 
@@ -103,7 +103,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#FDE68A]">
-                  PROFIL PERANGKATMU
+                  PROFIL
                 </span>
                 {currentRank && (
                   <span className="text-xs font-mono-tabular font-extrabold text-[#38BDF8]">
@@ -125,7 +125,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                     onClick={handleStartEdit}
                     className="px-2.5 py-1 rounded-lg bg-[#362452] hover:bg-[#463068] border-2 border-[#181425] text-xs font-bold text-[#FDE047] cursor-pointer"
                   >
-                    Ubah Username
+                    Ubah Nama
                   </button>
                 </div>
               ) : (
@@ -180,19 +180,19 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
             {profile && (
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div className="bg-[#231836] border border-[#362452] rounded-xl px-3 py-1.5">
-                  <div className="text-[10px] font-bold uppercase text-[#FDE68A]">SKOR TERBAIK</div>
+                  <div className="text-[10px] font-bold uppercase text-[#FDE68A]">SKOR</div>
                   <div className="text-base font-extrabold font-mono-tabular text-[#FACC15]">
                     {Math.round(profile.best_score)}
                   </div>
                 </div>
                 <div className="bg-[#231836] border border-[#362452] rounded-xl px-3 py-1.5">
-                  <div className="text-[10px] font-bold uppercase text-[#FDE68A]">TOTAL IKAN</div>
+                  <div className="text-[10px] font-bold uppercase text-[#FDE68A]">IKAN</div>
                   <div className="text-base font-extrabold font-mono-tabular text-[#38BDF8]">
                     {Math.round(profile.total_fish_collected)}
                   </div>
                 </div>
                 <div className="bg-[#231836] border border-[#362452] rounded-xl px-3 py-1.5">
-                  <div className="text-[10px] font-bold uppercase text-[#FDE68A]">ATAP LEWAT</div>
+                  <div className="text-[10px] font-bold uppercase text-[#FDE68A]">ATAP</div>
                   <div className="text-base font-extrabold font-mono-tabular text-[#34D399]">
                     {Math.round(profile.total_pipes_cleared)}
                   </div>
@@ -229,7 +229,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                 <tr className="border-b-2 border-[#362452] text-[11px] font-extrabold uppercase text-[#FDE68A]">
                   <th className="py-2 px-3">Rank</th>
                   <th className="py-2 px-3">Pemain</th>
-                  <th className="py-2 px-3 text-right">Skor Terbaik</th>
+                  <th className="py-2 px-3 text-right">Skor</th>
                   <th className="py-2 px-3 text-right hidden sm:table-cell">Atap</th>
                   <th className="py-2 px-3 text-right hidden sm:table-cell">Ikan</th>
                 </tr>

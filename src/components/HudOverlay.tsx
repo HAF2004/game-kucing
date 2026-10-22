@@ -202,7 +202,7 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
           {/* Passive Skills Status Strip (Shield 100, Magnet 300, Second Chance 400) — Status-only, no manual button */}
           <div
             data-testid="hud-passive-skills"
-            className="flex flex-wrap items-center gap-1 max-w-[260px] sm:max-w-none"
+            className="hidden sm:flex flex-wrap items-center gap-1 max-w-[260px] sm:max-w-none"
             aria-label="Status Skill Pasif"
           >
             {PASSIVE_POWER_IDS.map((pid) => {
@@ -447,8 +447,9 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
               <div className="font-display text-xs font-extrabold truncate">
                 SKILL AKTIF: {isPowerUnlocked ? equippedPower.shortName.toUpperCase() : 'TERKUNCI'}
               </div>
-              <div className="text-[10px] font-semibold text-[#FDE68A] truncate">
-                Dipilih di awal game · Tidak bisa diganti saat terbang
+              <div className="text-[10px] font-semibold text-[#FDE68A] truncate" title="Dipilih di awal game dan terkunci saat terbang">
+                <span className="sm:hidden">Skill pilihan</span>
+                <span className="hidden sm:inline">Dipilih di awal · terkunci saat terbang</span>
               </div>
             </div>
           </div>
@@ -462,10 +463,10 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
       {/* DESKTOP BOTTOM CONTROL REMINDER (Hidden on mobile) */}
       <div className="hidden md:flex justify-between items-end text-[11px] font-bold text-[#FDE68A] hud-stroke-sm">
         <span className="px-2.5 py-1 rounded-lg bg-[#181425]/80 border border-[#362452]">
-          REKOR: {Math.round(hud.bestScore)} · SKILL PILIHAN: {equippedPower.shortName.toUpperCase()} (TERKUNCI SAAT TERBANG)
+          REKOR {Math.round(hud.bestScore)} · SKILL {equippedPower.shortName.toUpperCase()}
         </span>
         <span className="px-2.5 py-1 rounded-lg bg-[#181425]/80 border border-[#362452]">
-          [SPASI / KLIK] TERBANG · [SHIFT / E] AKTIFKAN {equippedPower.shortName.toUpperCase()} · [P] JEDA
+          [SPASI / KLIK] TERBANG · [SHIFT / E] SKILL · [P] JEDA
         </span>
       </div>
     </div>

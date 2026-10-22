@@ -102,7 +102,7 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
         {bestScore > 0 && (
           <div className="bg-[#181425]/85 border-2 border-[#362452] rounded-xl px-3 py-1.5 text-right shrink-0 shadow-[0_3px_0_#181425]">
             <div className="text-[10px] font-extrabold tracking-wider uppercase text-[#FDE68A] leading-none">
-              REKOR ATAP
+              REKOR
             </div>
             <div className="text-xl md:text-2xl font-extrabold font-mono-tabular text-[#FFF8E7] leading-tight mt-0.5">
               {Math.round(bestScore)}
@@ -187,7 +187,7 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
             strokeWidth="3.5"
             paintOrder="stroke fill"
           >
-            6 SKILL: DASH · SHIELD · FREEZE · MAGNET · REVIVE · WAPRES
+            6 POWER · BUKA BERTAHAP
           </text>
         </svg>
 
@@ -201,7 +201,7 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
           <div className="mb-2.5 pb-2.5 border-b border-[#382854]">
             <div className="flex items-center justify-between gap-2 mb-1.5">
               <span className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-[#FDE68A]">
-                PILIH KARAKTER BARUDAK:
+                KARAKTER
               </span>
               <span
                 data-testid="title-equipped-power"
@@ -209,7 +209,7 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
                 style={{ backgroundColor: activePower.primaryColor }}
               >
                 {activePower.reward_id === 'none'
-                  ? 'First Play = Buka Dash!'
+                  ? 'First Play: Dash'
                   : `Skill Aktif: ${activePower.shortName}`}
               </span>
             </div>
@@ -255,7 +255,7 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
                         {skin.name}
                       </div>
                       <div className="text-[10px] font-semibold text-[#FDE68A] truncate">
-                        {skin.id === 'ninja' ? '4 Nyawa · Gesit' : '4 Nyawa · Jagoan'}
+                        4 nyawa
                       </div>
                     </div>
                   </button>
@@ -268,12 +268,12 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
           <div className="mt-2">
             <div className="flex flex-wrap items-center justify-between gap-1 mb-1.5">
               <span className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-[#FDE68A]">
-                PILIH 1 SKILL AKTIF DI AWAL GAME (TIDAK BISA SWITCH SAAT MAIN):
+                PILIH SKILL
               </span>
               <span className="text-[10px] font-bold text-[#34D399] whitespace-nowrap">
-                {unlockedAchievementsCount === 0
-                  ? 'Main Pertama = Buka Dash!'
-                  : `${unlockedAchievementsCount}/6 Power Terbuka`}
+                  {unlockedAchievementsCount === 0
+                    ? 'First Play: Dash'
+                    : `${unlockedAchievementsCount}/6 terbuka`}
               </span>
             </div>
 
@@ -376,10 +376,10 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
       <div className="w-full flex justify-center">
         <div className="px-3.5 py-1 rounded-full bg-[#181425]/85 border border-[#362452] text-center text-[11px] md:text-xs font-bold text-[#FFF8E7] tracking-wide whitespace-nowrap">
           <span className="md:hidden">
-            Ketuk Layar = Terbang · Pilih 1 Skill Aktif di Awal Game
+            Ketuk layar untuk terbang
           </span>
           <span className="hidden md:inline">
-            Spasi / Klik = Terbang · [Shift / E] Aktifkan Skill Pilihan · P = Jeda
+            Spasi / Klik terbang · Shift / E skill · P jeda
           </span>
         </div>
       </div>

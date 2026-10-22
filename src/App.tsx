@@ -843,7 +843,7 @@ export default function App() {
   const equippedPowerSpec = POWER_ABILITIES[equippedRewardId] ?? POWER_ABILITIES.none;
 
   return (
-    <main className="relative w-screen h-screen overflow-hidden bg-[#181425] select-none">
+    <main className="relative w-screen h-[100dvh] min-h-[100svh] overflow-hidden bg-[#181425] select-none">
       {/* Isolated Full-Viewport 60 FPS Canvas */}
       <canvas
         ref={canvasRef}

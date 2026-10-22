@@ -177,8 +177,8 @@ test('3. Dash duration (0.5s) and cooldown (8.0s) behavior and bounds safety', (
 });
 
 test('4. Shield blocks one fatal collision and is then consumed', () => {
-  const sim = createInitialWorld(1280, 720, 'pirang', 0, 'none', ['shield']);
-  startNewRun(sim, 'pirang', 'none', ['shield']);
+  const sim = createInitialWorld(1280, 720, 'pirang', 0, 'shield', ['shield']);
+  startNewRun(sim, 'pirang', 'shield', ['shield']);
   sim.cat.openingGraceTimer = 0;
   sim.cat.invulnTimer = 0;
   sim.cat.hp = 1;
@@ -283,8 +283,8 @@ test('6. Magnet attracts nearby collectibles within 125 units only when unlocked
   assert.equal(simLocked.fishCollected, 0);
 
   // Case B: Magnet UNLOCKED -> collectible within 125 units is smoothly pulled and collected exactly once
-  const simUnlocked = createInitialWorld(1280, 720, 'pirang', 0, 'none', ['magnet']);
-  startNewRun(simUnlocked, 'pirang', 'none', ['magnet']);
+  const simUnlocked = createInitialWorld(1280, 720, 'pirang', 0, 'magnet', ['magnet']);
+  startNewRun(simUnlocked, 'pirang', 'magnet', ['magnet']);
   simUnlocked.pipes = [];
   const startOffsetY = MAGNET_ATTRACTION_RADIUS - 15; // 110 units (< 125 radius)
   simUnlocked.fishes = [
@@ -335,8 +335,8 @@ test('6. Magnet attracts nearby collectibles within 125 units only when unlocked
 });
 
 test('7. Second Chance revives the player once, repositions safely, and applies 1.0s temporary invulnerability', () => {
-  const sim = createInitialWorld(1280, 720, 'pirang', 0, 'none', ['second_chance']);
-  startNewRun(sim, 'pirang', 'none', ['second_chance']);
+  const sim = createInitialWorld(1280, 720, 'pirang', 0, 'second_chance', ['second_chance']);
+  startNewRun(sim, 'pirang', 'second_chance', ['second_chance']);
   sim.cat.openingGraceTimer = 0;
   sim.cat.invulnTimer = 0;
   sim.cat.hp = 1;
@@ -419,17 +419,17 @@ test('8 & 9. Wapres activates once per run, grants 4s of immunity, and prevents 
   assert.equal(triggerPowerAbility(sim, createEmptyEvents(), 'wapres'), false);
 });
 
-test('10 & 11. Shield and Second Chance follow defined priority order and a single collision cannot consume multiple layers', () => {
-  const sim = createInitialWorld(1280, 720, 'pirang', 0, 'none', [
+test('10 & 11. Only the selected passive power protects the run', () => {
+  const sim = createInitialWorld(1280, 720, 'pirang', 0, 'shield', [
     'shield',
     'second_chance',
   ]);
-  startNewRun(sim, 'pirang', 'none', ['shield', 'second_chance']);
+  startNewRun(sim, 'pirang', 'shield', ['shield', 'second_chance']);
   sim.cat.openingGraceTimer = 0;
   sim.cat.invulnTimer = 0;
   sim.cat.hp = 1;
 
-  // Collision #1: Shield takes priority over Second Chance
+  // Collision #1: selected Shield blocks one fatal collision.
   const res1 = resolvePlayerCollision(sim, createEmptyEvents(), 'Tabrakan 1', 300, {
     instantFatalIfUnprotected: true,
   });
@@ -437,7 +437,7 @@ test('10 & 11. Shield and Second Chance follow defined priority order and a sing
   assert.equal(sim.powers.shield.chargesRemaining, 0);
   assert.equal(sim.powers.second_chance.chargesRemaining, 1);
 
-  // Immediate follow-up collision on the next frame (during clearance invuln) is ignored so 1 collision never consumes 2 layers!
+  // Immediate follow-up collision is ignored during Shield clearance invulnerability.
   const resSameEvent = resolvePlayerCollision(
     sim,
     createEmptyEvents(),
@@ -448,22 +448,41 @@ test('10 & 11. Shield and Second Chance follow defined priority order and a sing
   assert.equal(resSameEvent, 'ignored_invulnerable');
   assert.equal(sim.powers.second_chance.chargesRemaining, 1);
 
-  // After clearance invuln expires, Collision #2 consumes Second Chance
+  // Second Chance is unlocked but not selected, so it cannot be consumed.
   sim.cat.invulnTimer = 0;
   const res2 = resolvePlayerCollision(sim, createEmptyEvents(), 'Tabrakan 2', 280, {
     instantFatalIfUnprotected: true,
   });
-  assert.equal(res2, 'revived_by_second_chance');
-  assert.equal(sim.powers.second_chance.chargesRemaining, 0);
-  assert.equal(sim.cat.invulnTimer, SECOND_CHANCE_INVULN_SEC);
+  assert.equal(res2, 'game_over');
+  assert.equal(sim.powers.second_chance.chargesRemaining, 1);
+  assert.equal(sim.cat.hp, 0);
 
-  // After 1.0s revival invulnerability expires, Collision #3 triggers Game Over
+  // A separate run can select Second Chance and use that power instead.
+  startNewRun(sim, 'pirang', 'second_chance', ['shield', 'second_chance']);
+  sim.cat.openingGraceTimer = 0;
   sim.cat.invulnTimer = 0;
+  sim.cat.hp = 1;
   const res3 = resolvePlayerCollision(sim, createEmptyEvents(), 'Tabrakan 3', 280, {
     instantFatalIfUnprotected: true,
   });
-  assert.equal(res3, 'game_over');
-  assert.equal(sim.cat.hp, 0);
+  assert.equal(res3, 'revived_by_second_chance');
+  assert.equal(sim.powers.second_chance.chargesRemaining, 0);
+  assert.equal(sim.cat.invulnTimer, SECOND_CHANCE_INVULN_SEC);
+});
+
+test('Selected Dash does not consume an unlocked Shield', () => {
+  const sim = createInitialWorld(1280, 720, 'pirang', 0, 'dash', ['dash', 'shield']);
+  startNewRun(sim, 'pirang', 'dash', ['dash', 'shield']);
+  sim.cat.openingGraceTimer = 0;
+  sim.cat.invulnTimer = 0;
+  sim.cat.hp = 1;
+
+  const result = resolvePlayerCollision(sim, createEmptyEvents(), 'Tabrakan', 300, {
+    instantFatalIfUnprotected: true,
+  });
+
+  assert.equal(result, 'game_over');
+  assert.equal(sim.powers.shield.chargesRemaining, 1);
 });
 
 test('12. Starting a new run resets all temporary states while preserving unlocked powers', () => {
@@ -479,19 +498,12 @@ test('12. Starting a new run resets all temporary states while preserving unlock
   startNewRun(sim, 'pirang', 'wapres', [...allSix]);
   sim.cat.openingGraceTimer = 0;
 
-  // Spend Wapres, Dash, Shield, and Second Chance during Run 1
-  triggerPowerAbility(sim, createEmptyEvents(), 'dash');
+  // Spend the selected Wapres during Run 1. Other unlocked powers remain idle.
   triggerPowerAbility(sim, createEmptyEvents(), 'wapres');
-  sim.powers.wapres.isActive = false;
-  sim.powers.wapres.remainingDuration = 0;
-  resolvePlayerCollision(sim, createEmptyEvents(), 'Hit 1', 300);
-  sim.cat.invulnTimer = 0;
-  resolvePlayerCollision(sim, createEmptyEvents(), 'Hit 2', 300);
 
   assert.equal(sim.powers.wapres.chargesRemaining, 0);
-  assert.equal(sim.powers.shield.chargesRemaining, 0);
-  assert.equal(sim.powers.second_chance.chargesRemaining, 0);
-  assert.ok(sim.powers.dash.remainingCooldown > 0);
+  assert.equal(sim.powers.shield.chargesRemaining, 1);
+  assert.equal(sim.powers.second_chance.chargesRemaining, 1);
 
   // Start Run 2 without passing unlockedPowers explicitly -> unlocked powers are preserved and all charges/cooldowns reset!
   startNewRun(sim, 'pirang');
@@ -504,7 +516,7 @@ test('12. Starting a new run resets all temporary states while preserving unlock
   assert.equal(sim.powers.shield.chargesRemaining, 1);
   assert.equal(sim.powers.second_chance.chargesRemaining, 1);
   assert.equal(sim.powers.wapres.chargesRemaining, 1);
-  assert.equal(sim.powers.magnet.isActive, true);
+  assert.equal(sim.powers.magnet.isActive, false);
 });
 
 test('DynamicWeatherSystem picks distinct random weather and cycles over time', () => {

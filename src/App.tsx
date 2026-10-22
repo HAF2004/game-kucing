@@ -190,6 +190,8 @@ export default function App() {
       setEquippedRewardId(eq);
       if (simRef.current) {
         simRef.current.cat.activePower = eq;
+        simRef.current.powers.magnet.isActive =
+          eq === 'magnet' && simRef.current.powers.magnet.unlocked;
       }
       rendererRef.current?.setEquippedRewardId(eq);
     }

@@ -291,7 +291,12 @@ export class WorldCanvasRenderer {
     }
 
     // Magnet Passive Attraction Radius Indicator when unlocked
-    if (sim.powers.magnet.unlocked && sim.powers.magnet.isActive && sim.state === 'playing') {
+    if (
+      sim.cat.activePower === 'magnet' &&
+      sim.powers.magnet.unlocked &&
+      sim.powers.magnet.isActive &&
+      sim.state === 'playing'
+    ) {
       ctx.save();
       ctx.strokeStyle = 'rgba(168, 85, 247, 0.22)';
       ctx.lineWidth = 1.5;
@@ -409,7 +414,11 @@ export class WorldCanvasRenderer {
     if (fish.collected) return;
 
     // Draw magnetic attraction tether if within 125-unit Magnet radius
-    if (sim.powers.magnet.unlocked && sim.powers.magnet.isActive) {
+    if (
+      sim.cat.activePower === 'magnet' &&
+      sim.powers.magnet.unlocked &&
+      sim.powers.magnet.isActive
+    ) {
       const dx = sim.cat.x - fish.x;
       const dy = sim.cat.y - fish.y;
       if (dx * dx + dy * dy <= MAGNET_ATTRACTION_RADIUS_SQ) {
@@ -626,6 +635,7 @@ export class WorldCanvasRenderer {
     // Passive Shield Protective Barrier Ring (when 1 charge is available)
     if (
       !isTitle &&
+      sim.cat.activePower === 'shield' &&
       sim.powers.shield.unlocked &&
       sim.powers.shield.chargesRemaining > 0
     ) {

@@ -46,8 +46,11 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
   onRestart,
   onTriggerDash,
 }) => {
-  const isPowerUnlocked =
-    equippedPower.reward_id !== 'none' && equippedPower.category === 'active';
+  const isPowerSelected = equippedPower.reward_id !== 'none';
+  const isManualPower = equippedPower.category === 'active';
+  const selectedRuntime =
+    equippedPower.reward_id !== 'none' ? hud.powers?.[equippedPower.reward_id as CorePowerId] : undefined;
+  const isPowerUnlocked = Boolean(isPowerSelected && selectedRuntime?.unlocked);
   const energyPct = Math.round(hud.dashEnergy);
 
   const formatChosenActiveSkillState = (): {
@@ -56,7 +59,7 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
     unlocked: boolean;
     statusText: string;
   } => {
-    if (!isPowerUnlocked) {
+    if (!isPowerSelected) {
       return {
         ready: false,
         active: false,
@@ -65,7 +68,7 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
       };
     }
     const id = equippedPower.reward_id as CorePowerId;
-    const p = hud.powers?.[id];
+    const p = selectedRuntime;
     if (!p || !p.unlocked) {
       return {
         ready: false,
@@ -75,6 +78,19 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
           equippedPower.unlockScore === 0
             ? 'First Play'
             : `${equippedPower.unlockScore} Skor`,
+      };
+    }
+    if (!isManualPower) {
+      return {
+        ready: false,
+        active: p.isActive,
+        unlocked: true,
+        statusText:
+          id === 'magnet'
+            ? 'AKTIF PASIF'
+            : p.chargesRemaining > 0
+            ? `SIAP (${p.chargesRemaining}/1)`
+            : 'TERPAKAI',
       };
     }
     if (p.isActive && p.remainingDuration > 0) {
@@ -234,7 +250,7 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
             })}
           </div>
 
-          {/* Desktop Single Chosen Active Skill Card (Locked at game start — no mid-run switching) */}
+          {/* Desktop single selected power control (locked at game start). */}
           <div className="hidden md:flex items-center gap-2 pointer-events-auto">
             <button
               type="button"
@@ -248,7 +264,7 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
                 }
               }}
               aria-label={`Aktifkan Skill Pilihan ${equippedPower.shortName} [Shift / E]`}
-              className={`flex flex-col gap-1 px-3 py-2 rounded-xl border-2 border-[#181425] shadow-[0_3px_0_#181425] text-left transition-transform cursor-pointer disabled:cursor-default min-w-[190px] ${
+              className={`relative w-[4.5rem] h-[4.5rem] shrink-0 rounded-full border-[3px] border-[#181425] shadow-[0_4px_0_#181425] flex items-center justify-center transition-transform cursor-pointer disabled:cursor-default ${
                 chosenSkillState.active
                   ? 'bg-[#362452] ring-2 ring-[#FACC15]'
                   : chosenSkillState.ready
@@ -256,38 +272,30 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
                   : 'bg-[#181425]/85 opacity-80'
               }`}
             >
-              <div className="flex items-center justify-between gap-2 w-full">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <PowerIcon power={equippedPower} size="sm" />
-                  <span className="text-[11px] font-extrabold text-[#FFF8E7] truncate">
-                    {isPowerUnlocked ? equippedPower.shortName : 'Tanpa Skill'}
-                  </span>
-                  <span className="text-[9px] font-extrabold text-[#FDE68A] whitespace-nowrap">
-                    [SHIFT]
-                  </span>
-                </div>
-                <span className="text-[9px] font-mono-tabular font-extrabold text-[#34D399] whitespace-nowrap">
-                  {chosenSkillState.statusText}
-                </span>
-              </div>
-
-              {/* Continuous Readiness Bar */}
-              <div className="relative w-full h-1.5 bg-[#120D1D] border border-[#181425] rounded-full overflow-hidden">
-                <div
-                  ref={dashGhostRef}
-                  className="absolute inset-y-0 left-0 bg-[#FDE68A]/40 transition-all duration-150"
-                  style={{ width: `${isPowerUnlocked ? energyPct : 0}%` }}
-                />
-                <div
-                  ref={dashBarRef}
-                  className="relative h-full transition-none"
-                  style={{
-                    width: `${isPowerUnlocked ? energyPct : 0}%`,
-                    backgroundColor: equippedPower.primaryColor || '#F97316',
-                  }}
-                />
-              </div>
+              <span
+                className="absolute inset-0 rounded-full"
+                style={{
+                  background: `conic-gradient(${equippedPower.primaryColor || '#F97316'} ${isManualPower ? energyPct : 100}%, #362452 0)`,
+                }}
+                aria-hidden="true"
+              />
+              <span className="relative rounded-full bg-[#181425] p-1">
+                <PowerIcon power={equippedPower} size="lg" />
+              </span>
+              <span className="absolute -right-2 -bottom-1 px-1.5 py-0.5 rounded-full bg-[#181126] border border-[#FACC15] text-[9px] font-mono-tabular font-extrabold text-[#34D399] whitespace-nowrap">
+                {chosenSkillState.statusText}
+              </span>
+              <span ref={dashGhostRef} className="hidden" aria-hidden="true" />
+              <span ref={dashBarRef} className="hidden" aria-hidden="true" />
             </button>
+            <div className="min-w-0 max-w-[10rem]">
+              <div className="text-[11px] font-extrabold text-[#FFF8E7] truncate">
+                {isPowerUnlocked ? equippedPower.shortName : 'Tanpa Power'}
+              </div>
+              <div className="text-[9px] font-extrabold text-[#FDE68A]">
+                {isManualPower ? '[SHIFT / E] AKTIFKAN' : 'PASIF · TERPILIH'}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -385,50 +393,57 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
           </span>
         </div>
 
-        <button
-          type="button"
-          data-testid="mobile-power-btn"
-          disabled={!chosenSkillState.ready}
-          onPointerDown={(e) => {
-            e.stopPropagation();
-            if (chosenSkillState.ready) {
-              onTriggerDash(equippedPower.reward_id);
-            }
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            e.currentTarget.blur();
-          }}
-          aria-label={
-            isPowerUnlocked
-              ? `Aktifkan Skill ${equippedPower.shortName}`
-              : 'Skill Aktif Terkunci'
-          }
-          className={`pointer-events-auto w-full flex items-center justify-between py-2.5 px-4 rounded-2xl border-[2.5px] border-[#181425] shadow-[0_4px_0_#181425] active:translate-y-0.5 transition-transform select-none ${
-            chosenSkillState.active
-              ? 'bg-[#362452] text-[#FDE047] ring-2 ring-[#FACC15]'
-              : chosenSkillState.ready
-              ? 'bg-[#261B3A] text-[#FFF8E7] ring-1 ring-[#FACC15]'
-              : 'bg-[#181425]/90 text-[#94A3B8] opacity-85'
-          }`}
-        >
-          <div className="flex items-center gap-2 min-w-0">
-            <PowerIcon power={equippedPower} size="md" />
-            <div className="text-left min-w-0">
-              <div className="font-display text-xs font-extrabold truncate">
-                SKILL AKTIF: {isPowerUnlocked ? equippedPower.shortName.toUpperCase() : 'TERKUNCI'}
-              </div>
-              <div className="text-[10px] font-semibold text-[#FDE68A] truncate" title="Dipilih di awal game dan terkunci saat terbang">
-                <span className="sm:hidden">Skill pilihan</span>
-                <span className="hidden sm:inline">Dipilih di awal · terkunci saat terbang</span>
-              </div>
+        <div className="pointer-events-none flex items-center justify-end gap-2 w-full">
+          <div className="text-right max-w-[10rem]">
+            <div className="font-display text-xs font-extrabold text-[#FFF8E7] truncate">
+              {isPowerUnlocked ? equippedPower.shortName.toUpperCase() : 'POWER TERKUNCI'}
+            </div>
+            <div className="text-[10px] font-semibold text-[#FDE68A] truncate">
+              {isManualPower ? '[SHIFT / E] AKTIFKAN' : 'PASIF · TERPILIH'}
             </div>
           </div>
-
-          <span className="px-2.5 py-1 rounded-xl bg-[#181126] border border-[#362452] text-[11px] text-[#34D399] font-mono-tabular font-extrabold whitespace-nowrap">
-            {chosenSkillState.statusText}
-          </span>
-        </button>
+          <button
+            type="button"
+            data-testid="mobile-power-btn"
+            disabled={!chosenSkillState.ready}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              if (chosenSkillState.ready) {
+                onTriggerDash(equippedPower.reward_id);
+              }
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              e.currentTarget.blur();
+            }}
+            aria-label={
+              isPowerUnlocked && isManualPower
+                ? `Aktifkan Skill ${equippedPower.shortName}`
+                : `Power ${equippedPower.shortName} pasif`
+            }
+            className={`pointer-events-auto relative w-[4.25rem] h-[4.25rem] shrink-0 flex items-center justify-center rounded-full border-[3px] border-[#181425] shadow-[0_4px_0_#181425] active:translate-y-0.5 transition-transform select-none ${
+              chosenSkillState.active
+                ? 'bg-[#362452] text-[#FDE047] ring-2 ring-[#FACC15]'
+                : chosenSkillState.ready
+                ? 'bg-[#261B3A] text-[#FFF8E7] ring-1 ring-[#FACC15]'
+                : 'bg-[#181425]/90 text-[#94A3B8] opacity-85'
+            }`}
+          >
+            <span
+              className="absolute inset-0 rounded-full"
+              style={{
+                background: `conic-gradient(${equippedPower.primaryColor || '#F97316'} ${isManualPower ? energyPct : 100}%, #362452 0)`,
+              }}
+              aria-hidden="true"
+            />
+            <span className="relative rounded-full bg-[#181425] p-1">
+              <PowerIcon power={equippedPower} size="md" />
+            </span>
+            <span className="absolute -left-2 -bottom-1 px-1.5 py-0.5 rounded-full bg-[#181126] border border-[#FACC15] text-[9px] text-[#34D399] font-mono-tabular font-extrabold whitespace-nowrap">
+              {chosenSkillState.statusText}
+            </span>
+          </button>
+        </div>
       </div>
 
       {/* DESKTOP BOTTOM CONTROL REMINDER (Hidden on mobile) */}

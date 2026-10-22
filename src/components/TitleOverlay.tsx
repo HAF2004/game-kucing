@@ -211,7 +211,7 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
               >
                 {activePower.reward_id === 'none'
                   ? 'First Play: Dash'
-                  : `Skill Aktif: ${activePower.shortName}`}
+                  : `Power Terpilih: ${activePower.shortName}`}
               </span>
             </div>
 
@@ -269,7 +269,7 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
           <div className="mt-2">
             <div className="flex flex-wrap items-center justify-between gap-1 mb-1.5">
               <span className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-[#FDE68A]">
-                PILIH SKILL
+                PILIH POWER
               </span>
               <span className="text-[10px] font-bold text-[#34D399] whitespace-nowrap">
                   {unlockedAchievementsCount === 0
@@ -281,25 +281,22 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
             <div
               className="grid grid-cols-3 gap-1.5 sm:gap-2"
               role="radiogroup"
-              aria-label="Pilih Kemampuan Power Barudak di Awal Game"
+              aria-label="Pilih satu power Barudak di awal game"
             >
               {rewards.map((reward) => {
                 const isPassive = reward.category === 'passive';
-                const isSelectedActive =
-                  !isPassive && reward.reward_id === equippedRewardId;
+                const isSelectedPower = reward.reward_id === equippedRewardId;
                 return (
                   <button
                     key={reward.reward_id}
                     type="button"
                     data-testid={`title-power-card-${reward.reward_id}`}
-                    disabled={!reward.unlocked || isPassive}
-                    aria-pressed={isSelectedActive}
+                    disabled={!reward.unlocked}
+                    aria-pressed={isSelectedPower}
                     aria-label={
                       !reward.unlocked
                         ? `Jurus ${reward.name} terkunci (${reward.unlockMilestoneLabel})`
-                        : isPassive
-                        ? `${reward.name} (Pasif Otomatis Aktif)`
-                        : `Pilih jurus aktif ${reward.name} untuk awal game`
+                        : `Pilih ${isPassive ? 'power pasif' : 'power aktif'} ${reward.name} untuk awal game`
                     }
                     title={
                       reward.unlocked
@@ -308,15 +305,13 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
                     }
                     onClick={(e) => {
                       e.currentTarget.blur();
-                      if (reward.unlocked && !isPassive) {
+                      if (reward.unlocked) {
                         onEquipReward(reward.reward_id);
                       }
                     }}
                     className={`flex flex-col items-center justify-between py-1.5 px-2 rounded-xl border-2 text-center transition-transform ${
-                      isSelectedActive
+                      isSelectedPower
                         ? 'bg-[#362452] border-[#FACC15] -translate-y-0.5 shadow-[0_3px_0_#181425] cursor-pointer'
-                        : reward.unlocked && isPassive
-                        ? 'bg-[#1D283A] border-[#38BDF8]/70 cursor-default'
                         : reward.unlocked
                         ? 'bg-[#261B3A] border-[#181425] hover:bg-[#31224A] cursor-pointer'
                         : 'bg-[#171024] border-[#181425] opacity-60 cursor-not-allowed'
@@ -339,10 +334,10 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
                     <span className="text-[9px] font-mono-tabular font-semibold text-[#FDE68A] leading-none mt-0.5">
                       {!reward.unlocked
                         ? 'Terkunci'
-                        : isPassive
-                        ? 'Pasif Otomatis'
-                        : isSelectedActive
+                        : isSelectedPower
                         ? 'TERPILIH'
+                        : isPassive
+                        ? 'Pasif · Klik Pilih'
                         : 'Klik Pilih'}
                     </span>
                   </button>

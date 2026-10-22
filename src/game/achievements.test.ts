@@ -110,7 +110,7 @@ test('AchievementService grants each power only once and deduplicates replayed e
   assert.equal(score200Ach.progress, 100);
 });
 
-test('Multiple score milestones in a single batch unlock together, cycle active powers, and persist across reloads', () => {
+test('Multiple score milestones unlock together, cycle the selected power, and persist across reloads', () => {
   const storage = new MemoryStorage();
   const store1 = new LocalProgressStore(storage);
   const service1 = new AchievementService(store1);
@@ -123,11 +123,12 @@ test('Multiple score milestones in a single batch unlock together, cycle active 
     ['shield', 'time_freeze', 'magnet', 'second_chance', 'wapres']
   );
 
-  assert.equal(service1.getEquippedRewardId(), 'wapres');
+  // Unlocking later powers never silently changes the current selection.
+  assert.equal(service1.getEquippedRewardId(), 'dash');
 
-  // Cycling active powers cycles through dash -> time_freeze -> wapres
+  // Cycling moves through every unlocked power, including passive powers.
   const cycled = service1.cycleUnlockedPower();
-  assert.equal(cycled, 'dash');
+  assert.equal(cycled, 'shield');
 
   const equipRes = service1.equipReward('wapres');
   assert.equal(equipRes.success, true);

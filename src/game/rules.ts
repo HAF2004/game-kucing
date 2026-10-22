@@ -70,7 +70,10 @@ export function createEmptyEvents(): SimulationEvents {
 /**
  * Creates a clean runtime state map for all six powers based on which powers are unlocked.
  */
-export function createRunPowerMap(unlockedPowers: PowerAbilityId[] = []): RunPowerMap {
+export function createRunPowerMap(
+  unlockedPowers: PowerAbilityId[] = [],
+  selectedPower: PowerAbilityId = 'none'
+): RunPowerMap {
   const unlockedSet = new Set<CorePowerId>();
   for (const raw of unlockedPowers) {
     const norm = normalizePowerId(raw);
@@ -78,6 +81,8 @@ export function createRunPowerMap(unlockedPowers: PowerAbilityId[] = []): RunPow
       unlockedSet.add(norm);
     }
   }
+
+  const selected = normalizePowerId(selectedPower);
 
   const map = {} as RunPowerMap;
   for (const id of CORE_POWER_IDS) {
@@ -88,7 +93,9 @@ export function createRunPowerMap(unlockedPowers: PowerAbilityId[] = []): RunPow
       id,
       category: spec.category,
       unlocked: isUnlocked,
-      isActive: id === 'magnet' ? isUnlocked : false,
+      // A run has one selected power. Passive effects are intentionally
+      // inactive until their power is selected in the title screen.
+      isActive: id === 'magnet' && isUnlocked && selected === id,
       remainingDuration: 0,
       remainingCooldown: 0,
       chargesRemaining: isUnlocked ? (maxCharges ?? 1) : 0,
@@ -120,10 +127,13 @@ export function syncUnlockedPowers(
     if (nowUnlocked && !runtime.unlocked) {
       runtime.unlocked = true;
       runtime.chargesRemaining = runtime.maxChargesPerRun ?? 1;
-      if (id === 'magnet') {
-        runtime.isActive = true;
-      }
+      runtime.isActive = id === 'magnet' && sim.cat.activePower === id;
     }
+  }
+
+  if (sim.powers.magnet) {
+    sim.powers.magnet.isActive =
+      sim.cat.activePower === 'magnet' && sim.powers.magnet.unlocked;
   }
 }
 
@@ -196,7 +206,7 @@ export function createInitialWorld(
       laserTimer: 0,
       shockwaveRadius: 0,
     },
-    powers: createRunPowerMap(effectiveUnlocked),
+    powers: createRunPowerMap(effectiveUnlocked, normEquipped),
     pipes: [],
     enemies: [],
     fishes: [],
@@ -382,6 +392,7 @@ export function canActivatePower(sim: WorldSimulation, powerId: PowerAbilityId):
   }
   const norm = normalizePowerId(powerId);
   if (norm === 'none') return false;
+  if (sim.cat.activePower !== norm) return false;
 
   const runtime: PowerRuntimeState | undefined = sim.powers[norm];
   if (!runtime) return false;
@@ -425,6 +436,12 @@ export function triggerPowerAbility(
 
   const cat = sim.cat;
   const requestedId = normalizePowerId(overridePower ?? cat.activePower);
+
+  // A run may only use the single power selected before launch. This also
+  // prevents stale button events or callers from activating another power.
+  if (cat.activePower !== requestedId) {
+    return false;
+  }
 
   // Active skills must be unlocked and of category 'active' (chosen at run start)
   if (
@@ -542,13 +559,22 @@ export function resolvePlayerCollision(
 
   // 3. Check Wapres ultimate immunity (4 seconds)
   const wapresState = sim.powers.wapres;
-  if (wapresState.unlocked && wapresState.isActive && wapresState.remainingDuration > 0) {
+  if (
+    cat.activePower === 'wapres' &&
+    wapresState.unlocked &&
+    wapresState.isActive &&
+    wapresState.remainingDuration > 0
+  ) {
     return 'blocked_by_wapres';
   }
 
   // 4. Check Shield availability (1 charge per run, passive)
   const shieldState = sim.powers.shield;
-  if (shieldState.unlocked && shieldState.chargesRemaining > 0) {
+  if (
+    cat.activePower === 'shield' &&
+    shieldState.unlocked &&
+    shieldState.chargesRemaining > 0
+  ) {
     shieldState.chargesRemaining -= 1;
     cat.invulnTimer = Math.max(cat.invulnTimer, SHIELD_CLEARANCE_INVULN_SEC);
     cat.scaleX = 1.18;
@@ -560,7 +586,11 @@ export function resolvePlayerCollision(
 
   // 5. Check Second Chance availability (1 revival per run, passive)
   const secondChanceState = sim.powers.second_chance;
-  if (secondChanceState.unlocked && secondChanceState.chargesRemaining > 0) {
+  if (
+    cat.activePower === 'second_chance' &&
+    secondChanceState.unlocked &&
+    secondChanceState.chargesRemaining > 0
+  ) {
     secondChanceState.chargesRemaining -= 1;
     const minSafeY = cat.radius + 24;
     const maxSafeY = Math.max(minSafeY + 10, sim.groundY - cat.radius - 24);
@@ -675,7 +705,9 @@ export function stepWorldSimulation(
       pState.remainingCooldown = Math.max(0, pState.remainingCooldown - dt);
     }
   }
-  sim.powers.magnet.isActive = sim.powers.magnet.unlocked;
+  // Magnet is passive, but only for the power selected for this run.
+  sim.powers.magnet.isActive =
+    sim.powers.magnet.unlocked && cat.activePower === 'magnet';
 
   // Sync legacy cat timer fields with centralized power state
   cat.dashTimer = sim.powers.dash.remainingDuration;

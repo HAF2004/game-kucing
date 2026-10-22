@@ -117,9 +117,12 @@ export class AchievementService {
           this.state.unlockedRewardIds.push(def.reward_id);
         }
 
-        if (POWER_ABILITIES[def.reward_id]?.category === 'active') {
-          this.state.equippedRewardId = def.reward_id;
-        } else if (this.state.equippedRewardId === 'none') {
+        // Unlocking a power must not silently replace the player's current
+        // selection. The selector is the only place that changes the run loadout.
+        if (
+          POWER_ABILITIES[def.reward_id]?.category === 'active' &&
+          this.state.equippedRewardId === 'none'
+        ) {
           this.state.equippedRewardId = def.reward_id;
         }
 
@@ -220,10 +223,12 @@ export class AchievementService {
           this.state.unlockedRewardIds.push(def.reward_id);
         }
 
-        // Automatically equip newly unlocked active power (or set initial power)
-        if (POWER_ABILITIES[def.reward_id]?.category === 'active') {
-          this.state.equippedRewardId = def.reward_id;
-        } else if (this.state.equippedRewardId === 'none') {
+        // Unlocking a power must not silently replace the player's current
+        // selection. Keep the current loadout until the selector changes it.
+        if (
+          POWER_ABILITIES[def.reward_id]?.category === 'active' &&
+          this.state.equippedRewardId === 'none'
+        ) {
           this.state.equippedRewardId = def.reward_id;
         }
 
@@ -317,15 +322,13 @@ export class AchievementService {
   }
 
   /**
-   * Cycles to the next unlocked Active Power Ability (or any unlocked power if only passives exist).
+   * Cycles to the next unlocked power. The selected power is the only power
+   * that can run during the next game.
    */
   public cycleUnlockedPower(): PowerAbilityId {
     const unlocked = this.state.unlockedRewardIds;
     if (unlocked.length === 0) return 'none';
-    const activeUnlocked = unlocked.filter((id) =>
-      ACTIVE_POWER_IDS.includes(id as CorePowerId)
-    );
-    const pool = activeUnlocked.length > 0 ? activeUnlocked : unlocked;
+    const pool = unlocked;
     const current = this.getEquippedRewardId();
     const idx = pool.indexOf(current);
     const next = pool[(idx + 1) % pool.length];
@@ -347,9 +350,7 @@ export class AchievementService {
       return {
         ...reward,
         unlocked: this.isRewardUnlocked(reward.reward_id),
-        equipped:
-          reward.reward_id === equippedId ||
-          (reward.category === 'passive' && this.isRewardUnlocked(reward.reward_id)),
+        equipped: reward.reward_id === equippedId,
         requiredAchievementName: linkedAch?.name,
         requiredAchievementDesc: linkedAch?.description,
       };

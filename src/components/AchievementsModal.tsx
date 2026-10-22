@@ -76,8 +76,8 @@ export const AchievementsModal: React.FC<AchievementsModalProps> = ({
             </span>
             <span className="text-[10px] sm:text-[11px] font-semibold text-[#E2E8F0]">
               {canSelectSkill
-                ? 'Pilih 1 aktif · pasif otomatis'
-                : 'Skill aktif terkunci saat bermain'}
+                ? 'Pilih 1 power untuk run ini'
+                : 'Power terkunci saat bermain'}
             </span>
           </div>
 
@@ -88,55 +88,28 @@ export const AchievementsModal: React.FC<AchievementsModalProps> = ({
           >
             {rewards.map((reward) => {
               const isPassive = reward.category === 'passive';
-              const isSelectable = reward.unlocked && !isPassive && canSelectSkill;
-              const isSelectedActive = !isPassive && reward.equipped;
+              const isSelectable = reward.unlocked && canSelectSkill;
+              const isSelectedPower = reward.equipped;
               return (
                 <button
                   key={reward.reward_id}
                   type="button"
                   disabled={!isSelectable}
-                  aria-pressed={isSelectedActive}
+                  aria-pressed={isSelectedPower}
                   onClick={() => {
                     if (isSelectable) {
                       onEquipReward(reward.reward_id);
                     }
                   }}
                   className={`flex items-center gap-2.5 p-2 rounded-xl border-2 text-left transition-transform ${
-                    isSelectedActive
+                    isSelectedPower
                       ? 'bg-[#362452] border-[#FACC15] shadow-[0_3px_0_#181425]'
-                      : reward.unlocked && isPassive
-                      ? 'bg-[#1D283A] border-[#38BDF8]/70 cursor-default'
                       : isSelectable
                       ? 'bg-[#261B3A] border-[#181425] hover:bg-[#31224A] cursor-pointer'
                       : 'bg-[#1B1329] border-[#181425] opacity-65 cursor-not-allowed'
                   }`}
                 >
-                  {/* Power Emblem Badge or Wapres Head Icon */}
-                  {reward.iconAsset ? (
-                    <img
-                      src={reward.iconAsset}
-                      alt={reward.shortName}
-                      className="w-8 h-8 rounded-xl border-2 border-[#FACC15] object-cover shrink-0 bg-[#181425]"
-                    />
-                  ) : (
-                    <span
-                      className="w-8 h-8 rounded-xl border-2 border-[#181425] shrink-0 flex items-center justify-center"
-                      style={{
-                        background: `linear-gradient(135deg, ${reward.primaryColor} 60%, ${reward.accentColor} 100%)`,
-                      }}
-                      aria-hidden="true"
-                    >
-                      {reward.unlocked ? (
-                        <svg viewBox="0 0 24 24" className="w-4 h-4 text-[#181425]" fill="currentColor">
-                          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                        </svg>
-                      ) : (
-                        <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-[#181425]" fill="currentColor">
-                          <path d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5zm-3 5a3 3 0 0 1 6 0v3H9V7z" />
-                        </svg>
-                      )}
-                    </span>
-                  )}
+                  <PowerIcon power={reward} size="sm" />
 
                   <div className="min-w-0 flex-1">
                     <div className="text-xs font-bold text-[#FFF8E7] truncate">
@@ -147,10 +120,10 @@ export const AchievementsModal: React.FC<AchievementsModalProps> = ({
                         ? reward.unlockScore === 0
                           ? 'Butuh First Play'
                           : `Butuh ${reward.unlockScore} Skor`
+                        : isSelectedPower
+                        ? `${isPassive ? 'Pasif' : 'Aktif'} · TERPILIH`
                         : isPassive
-                        ? 'Pasif · Otomatis Aktif'
-                        : isSelectedActive
-                        ? 'Aktif · TERPILIH'
+                        ? 'Pasif · Klik Pilih'
                         : canSelectSkill
                         ? `Aktif · Klik Pilih`
                         : 'Terkunci Saat Main'}

@@ -3,11 +3,22 @@ import {
   CatSkinInfo,
   EnemyHazard,
   FishPickup,
+  getCharacterSkin,
   PipeColumn,
   SimulationEvents,
   WorldSimulation,
 } from './types';
 import { DynamicWeatherSystem, WeatherType } from './weather';
+import {
+  MAGNET_ATTRACTION_RADIUS_SQ,
+  WAPRES_DURATION_SEC,
+} from './rules';
+import {
+  normalizePowerId,
+  POWER_ABILITIES,
+  PowerAbilityId,
+  WAPRES_ASSET_PATH,
+} from './achievementDefinitions';
 
 interface PooledParticle {
   active: boolean;
@@ -29,9 +40,11 @@ export class WorldCanvasRenderer {
   private ringCursor = 0;
   public weather: DynamicWeatherSystem;
   private spriteCache: Map<string, CanvasImageSource> = new Map();
+  private equippedRewardId: PowerAbilityId = 'none';
 
-  constructor(initialWeather?: WeatherType) {
+  constructor(initialWeather?: WeatherType, initialRewardId: PowerAbilityId = 'none') {
     this.weather = new DynamicWeatherSystem(initialWeather);
+    this.equippedRewardId = normalizePowerId(initialRewardId);
 
     for (let i = 0; i < MAX_PARTICLES; i++) {
       this.particles.push({
@@ -51,94 +64,36 @@ export class WorldCanvasRenderer {
     this.preloadSkinSprites();
   }
 
+  private preloadSingleSprite(url: string): void {
+    if (this.spriteCache.has(url)) return;
+    const img = new Image();
+    img.decoding = 'async';
+    img.onload = () => {
+      this.spriteCache.set(url, img);
+      if (typeof createImageBitmap === 'function') {
+        createImageBitmap(img)
+          .then((bitmap) => {
+            this.spriteCache.set(url, bitmap);
+          })
+          .catch(() => {
+            // Keep HTMLImageElement fallback
+          });
+      }
+    };
+    img.src = url;
+  }
+
   private preloadSkinSprites(): void {
     if (typeof window === 'undefined' || typeof Image === 'undefined') return;
     for (const skin of CAT_SKINS) {
       if (!skin.sprites) continue;
       const urls = [skin.sprites.idle, skin.sprites.jump, skin.sprites.gethit];
       for (const url of urls) {
-        if (this.spriteCache.has(url)) continue;
-        const img = new Image();
-        img.decoding = 'async';
-        img.onload = () => {
-          this.spriteCache.set(url, this.cleanCheckerboardBackground(img));
-        };
-        img.src = url;
+        this.preloadSingleSprite(url);
       }
     }
-  }
-
-  /**
-   * If an uploaded sprite has a baked-in gray/white checkerboard background,
-   * flood-fill from the outer border to make the exterior background 100% transparent.
-   */
-  private cleanCheckerboardBackground(img: HTMLImageElement): CanvasImageSource {
-    try {
-      const size = 256;
-      const offscreen = document.createElement('canvas');
-      offscreen.width = size;
-      offscreen.height = size;
-      const octx = offscreen.getContext('2d');
-      if (!octx) return img;
-
-      octx.drawImage(img, 0, 0, size, size);
-      const imageData = octx.getImageData(0, 0, size, size);
-      const data = imageData.data;
-
-      // If top-left pixel is already transparent, keep native alpha
-      if (data[3] < 32) {
-        return offscreen;
-      }
-
-      const visited = new Uint8Array(size * size);
-      const queue = new Int32Array(size * size);
-      let head = 0;
-      let tail = 0;
-
-      const isNeutralCheckerPixel = (idx: number): boolean => {
-        const r = data[idx];
-        const g = data[idx + 1];
-        const b = data[idx + 2];
-        const maxC = Math.max(r, g, b);
-        const minC = Math.min(r, g, b);
-        // Checkerboard squares are neutral light gray/white (low saturation, high brightness)
-        return maxC - minC <= 18 && minC >= 180;
-      };
-
-      const enqueue = (x: number, y: number) => {
-        if (x < 0 || x >= size || y < 0 || y >= size) return;
-        const pos = y * size + x;
-        if (visited[pos]) return;
-        visited[pos] = 1;
-        if (isNeutralCheckerPixel(pos * 4)) {
-          queue[tail++] = pos;
-        }
-      };
-
-      for (let i = 0; i < size; i++) {
-        enqueue(i, 0);
-        enqueue(i, size - 1);
-        enqueue(0, i);
-        enqueue(size - 1, i);
-      }
-
-      while (head < tail) {
-        const pos = queue[head++];
-        const pIdx = pos * 4;
-        data[pIdx + 3] = 0; // make transparent
-        const x = pos % size;
-        const y = (pos / size) | 0;
-        enqueue(x + 1, y);
-        enqueue(x - 1, y);
-        enqueue(x, y + 1);
-        enqueue(x, y - 1);
-      }
-
-      octx.putImageData(imageData, 0, 0);
-      return offscreen;
-    } catch {
-      return img;
-    }
+    // Preload the Wapres Ultimate Head Sprite
+    this.preloadSingleSprite(WAPRES_ASSET_PATH);
   }
 
   public randomizeWeather(forcedWeather?: WeatherType): WeatherType {
@@ -147,6 +102,14 @@ export class WorldCanvasRenderer {
 
   public getCurrentWeather(): WeatherType {
     return this.weather.currentWeather;
+  }
+
+  public setEquippedRewardId(rewardId: PowerAbilityId): void {
+    this.equippedRewardId = normalizePowerId(rewardId);
+  }
+
+  public getEquippedRewardId(): PowerAbilityId {
+    return this.equippedRewardId;
   }
 
   public spawnBurst(
@@ -182,6 +145,21 @@ export class WorldCanvasRenderer {
     }
     if (events.dashed) {
       this.spawnBurst(cat.x - 10, cat.y, 16, '#38BDF8', 240, 'star');
+    }
+    if (events.timeFreezeActivated) {
+      this.spawnBurst(cat.x, cat.y, 24, '#818CF8', 260, 'star');
+    }
+    if (events.wapresActivated) {
+      this.spawnBurst(cat.x, cat.y, 32, '#FACC15', 320, 'star');
+    }
+    if (events.shieldBlocked) {
+      this.spawnBurst(cat.x + 12, cat.y, 22, '#10B981', 260, 'star');
+    }
+    if (events.secondChanceRevived) {
+      this.spawnBurst(cat.x, cat.y, 28, '#F59E0B', 300, 'star');
+    }
+    if (events.obstacleDestroyed) {
+      this.spawnBurst(cat.x + 140, cat.y, 20, '#FACC15', 290, 'star');
     }
     if (events.collectedGoldenFish) {
       this.spawnBurst(cat.x + 12, cat.y, 18, '#FACC15', 210, 'star');
@@ -236,7 +214,7 @@ export class WorldCanvasRenderer {
     ctx.fill();
     ctx.restore();
 
-    // 2b. Dynamic Background Weather (Falling Cherry Blossoms, Twinkling Stars, or Firefly Breeze)
+    // 2b. Dynamic Background Weather
     const weatherDt = sim.state === 'paused' ? 0 : dt;
     const weatherScroll = sim.state === 'playing' ? sim.scrollSpeed : sim.scrollSpeed * 0.45;
     this.weather.update(weatherDt, w, groundY, weatherScroll);
@@ -249,12 +227,14 @@ export class WorldCanvasRenderer {
 
     // 5. Draw Chimneys / Bamboo Pipes
     for (let i = 0; i < sim.pipes.length; i++) {
-      this.drawPipe(ctx, sim.pipes[i], groundY);
+      if (!sim.pipes[i].destroyed) {
+        this.drawPipe(ctx, sim.pipes[i], groundY, sim.powers.time_freeze.isActive);
+      }
     }
 
-    // 6. Draw Collectible Fish Pickups
+    // 6. Draw Collectible Fish Pickups + Magnet Tether
     for (let i = 0; i < sim.fishes.length; i++) {
-      this.drawFish(ctx, sim.fishes[i]);
+      this.drawFish(ctx, sim.fishes[i], sim);
     }
 
     // 7. Draw Enemy Hazards & Windup Telegraphs
@@ -262,15 +242,19 @@ export class WorldCanvasRenderer {
       this.drawEnemy(ctx, sim.enemies[i], sim.cat.x);
     }
 
+    // 7b. Draw Active & Passive Power Visual Effects
+    this.drawPowerEffects(ctx, sim);
+
     // 8. Update & Draw Pooled Particles
-    if (sim.cat.dashTimer > 0) {
+    if (sim.powers.dash.isActive) {
       this.spawnBurst(sim.cat.x - 18, sim.cat.y, 1, '#38BDF8', 70, 'star');
+    } else if (sim.powers.wapres.isActive) {
+      this.spawnBurst(sim.cat.x - 18, sim.cat.y, 1, '#FACC15', 85, 'star');
     }
     this.updateAndDrawParticles(ctx, dt, sim.scrollSpeed);
 
-    // 9. Draw Protagonist Cat / 4th Special Model
-    const skinInfo = CAT_SKINS.find((s) => s.id === sim.skin) || CAT_SKINS[0];
-    this.drawCat(ctx, sim, skinInfo, pointerOffset);
+    // 9. Draw Active Protagonist (Barudak Pirang, Barudak Ninja, or Wapres Ultimate Mode)
+    this.drawBarudak(ctx, sim, getCharacterSkin(sim.skin));
 
     // 10. Foreground Terracotta Roof Tiles (Ground Strip)
     this.drawForegroundGround(ctx, w, h, groundY, sim.distancePx);
@@ -286,6 +270,37 @@ export class WorldCanvasRenderer {
     }
 
     ctx.restore();
+  }
+
+  private drawPowerEffects(ctx: CanvasRenderingContext2D, sim: WorldSimulation): void {
+    const cat = sim.cat;
+
+    // Time Freeze (45% World Speed) Frost Overlay & Clockwork Ring
+    if (sim.powers.time_freeze.isActive && sim.powers.time_freeze.remainingDuration > 0) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.09)';
+      ctx.fillRect(0, 0, sim.worldWidth, sim.groundY);
+
+      ctx.strokeStyle = 'rgba(129, 140, 248, 0.75)';
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([6, 6]);
+      ctx.beginPath();
+      ctx.arc(cat.x, cat.y, 42, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Magnet Passive Attraction Radius Indicator when unlocked
+    if (sim.powers.magnet.unlocked && sim.powers.magnet.isActive && sim.state === 'playing') {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(168, 85, 247, 0.22)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 8]);
+      ctx.beginPath();
+      ctx.arc(cat.x, cat.y, 125, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   private drawCityLayer(
@@ -330,7 +345,6 @@ export class WorldCanvasRenderer {
       const bx = i * stepWidth - offset;
       const by = groundY - bh;
 
-      // Pitched house silhouette
       ctx.fillStyle = color;
       ctx.beginPath();
       ctx.moveTo(bx - 6, by + 18);
@@ -341,7 +355,6 @@ export class WorldCanvasRenderer {
       ctx.closePath();
       ctx.fill();
 
-      // Lit cozy window
       if (idx % 2 === 0) {
         ctx.fillStyle = '#FBBF24';
         ctx.fillRect(bx + stepWidth * 0.42, by + 26, 16, 18);
@@ -349,15 +362,20 @@ export class WorldCanvasRenderer {
     }
   }
 
-  private drawPipe(ctx: CanvasRenderingContext2D, pipe: PipeColumn, groundY: number): void {
+  private drawPipe(
+    ctx: CanvasRenderingContext2D,
+    pipe: PipeColumn,
+    groundY: number,
+    isFrozen = false
+  ): void {
     const topHeight = Math.max(0, pipe.gapY - pipe.gapHeight * 0.5);
     const bottomY = pipe.gapY + pipe.gapHeight * 0.5;
     const bottomHeight = Math.max(0, groundY - bottomY);
 
     const isBamboo = pipe.style === 'bamboo';
-    const bodyColor = isBamboo ? '#15803D' : '#9A3412';
-    const highlightColor = isBamboo ? '#4ADE80' : '#EA580C';
-    const shadowColor = isBamboo ? '#14532D' : '#431407';
+    const bodyColor = isFrozen ? '#1E3A8A' : isBamboo ? '#15803D' : '#9A3412';
+    const highlightColor = isFrozen ? '#60A5FA' : isBamboo ? '#4ADE80' : '#EA580C';
+    const shadowColor = isFrozen ? '#172554' : isBamboo ? '#14532D' : '#431407';
     const borderColor = '#181425';
 
     const drawSegment = (x: number, y: number, width: number, height: number, isTop: boolean) => {
@@ -368,20 +386,17 @@ export class WorldCanvasRenderer {
       ctx.fillRect(x, y, width, height);
       ctx.strokeRect(x, y, width, height);
 
-      // Left highlight & right shadow
       ctx.fillStyle = highlightColor;
       ctx.fillRect(x + 6, y + 2, 10, Math.max(0, height - 4));
       ctx.fillStyle = shadowColor;
       ctx.fillRect(x + width - 14, y + 2, 10, Math.max(0, height - 4));
 
-      // Cap lip
       const capHeight = 24;
       const capY = isTop ? y + height - capHeight : y;
       ctx.fillStyle = bodyColor;
       ctx.fillRect(x - 5, capY, width + 10, capHeight);
       ctx.strokeRect(x - 5, capY, width + 10, capHeight);
 
-      // Decorative cat-ear stone silhouette on chimney cap
       ctx.fillStyle = highlightColor;
       ctx.fillRect(x + 2, capY + 4, width - 4, 5);
     };
@@ -390,18 +405,34 @@ export class WorldCanvasRenderer {
     drawSegment(pipe.x, bottomY, pipe.width, bottomHeight, false);
   }
 
-  private drawFish(ctx: CanvasRenderingContext2D, fish: FishPickup): void {
+  private drawFish(ctx: CanvasRenderingContext2D, fish: FishPickup, sim: WorldSimulation): void {
     if (fish.collected) return;
+
+    // Draw magnetic attraction tether if within 125-unit Magnet radius
+    if (sim.powers.magnet.unlocked && sim.powers.magnet.isActive) {
+      const dx = sim.cat.x - fish.x;
+      const dy = sim.cat.y - fish.y;
+      if (dx * dx + dy * dy <= MAGNET_ATTRACTION_RADIUS_SQ) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(168, 85, 247, 0.55)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(fish.x, fish.y);
+        ctx.lineTo(sim.cat.x, sim.cat.y);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
     ctx.save();
     ctx.translate(fish.x, fish.y);
 
-    // Glow halo
     ctx.fillStyle = fish.isGolden ? 'rgba(250, 204, 21, 0.25)' : 'rgba(56, 189, 248, 0.22)';
     ctx.beginPath();
     ctx.arc(0, 0, fish.radius + 7, 0, Math.PI * 2);
     ctx.fill();
 
-    // Tail fin
     ctx.fillStyle = fish.isGolden ? '#F59E0B' : '#0284C7';
     ctx.strokeStyle = '#181425';
     ctx.lineWidth = 2.5;
@@ -414,14 +445,12 @@ export class WorldCanvasRenderer {
     ctx.fill();
     ctx.stroke();
 
-    // Fish body
     ctx.fillStyle = fish.isGolden ? '#FDE047' : '#38BDF8';
     ctx.beginPath();
     ctx.ellipse(-2, 0, 12, 7.5, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // Eye
     ctx.fillStyle = '#181425';
     ctx.beginPath();
     ctx.arc(-7, -2, 2, 0, Math.PI * 2);
@@ -434,11 +463,9 @@ export class WorldCanvasRenderer {
     ctx.save();
     ctx.translate(enemy.x, enemy.y);
 
-    // Draw visible Windup Telegraph (0.48s - 0.65s warning before attack)
     if (enemy.active && enemy.telegraphTimer > 0) {
       const progress = 1 - enemy.telegraphTimer / enemy.telegraphMax;
       ctx.save();
-      // Aim sight line toward left playfield
       ctx.strokeStyle = `rgba(244, 63, 94, ${(0.35 + progress * 0.55).toFixed(2)})`;
       ctx.lineWidth = 2 + progress * 2.5;
       ctx.setLineDash([8, 6]);
@@ -447,7 +474,6 @@ export class WorldCanvasRenderer {
       ctx.lineTo(-(enemy.x - catX + 120), 0);
       ctx.stroke();
 
-      // Contracting warning ring around hazard
       const ringRadius = enemy.radius + 6 + (1 - progress) * 24;
       ctx.setLineDash([]);
       ctx.strokeStyle = '#FDE047';
@@ -456,7 +482,6 @@ export class WorldCanvasRenderer {
       ctx.arc(0, 0, ringRadius, 0, Math.PI * 2);
       ctx.stroke();
 
-      // Exclamation mark badge above enemy
       ctx.fillStyle = '#F43F5E';
       ctx.font = '800 16px "Fredoka", sans-serif';
       ctx.textAlign = 'center';
@@ -472,7 +497,6 @@ export class WorldCanvasRenderer {
     ctx.lineWidth = 3;
 
     if (enemy.archetype === 'crow_charger') {
-      // Silhouette 1: Sharp Purple-Black Crow Bandit
       const wingY = Math.sin(enemy.phase * 3.2) * 9;
       ctx.fillStyle = enemy.telegraphTimer > 0 ? '#FB7185' : '#312E81';
       ctx.beginPath();
@@ -480,7 +504,6 @@ export class WorldCanvasRenderer {
       ctx.fill();
       ctx.stroke();
 
-      // Sharp yellow beak pointing left
       ctx.fillStyle = '#FACC15';
       ctx.beginPath();
       ctx.moveTo(-15, -4);
@@ -490,7 +513,6 @@ export class WorldCanvasRenderer {
       ctx.fill();
       ctx.stroke();
 
-      // Flapping wing
       ctx.fillStyle = '#4338CA';
       ctx.beginPath();
       ctx.moveTo(-4, -2);
@@ -500,20 +522,17 @@ export class WorldCanvasRenderer {
       ctx.fill();
       ctx.stroke();
 
-      // Angry red eye
       ctx.fillStyle = '#F43F5E';
       ctx.beginPath();
       ctx.arc(-9, -3, 2.8, 0, Math.PI * 2);
       ctx.fill();
     } else if (enemy.archetype === 'balloon_weaver') {
-      // Silhouette 2: Spiky Pufferfish Lantern Balloon
       ctx.fillStyle = enemy.telegraphTimer > 0 ? '#FDE047' : '#EC4899';
       ctx.beginPath();
       ctx.arc(0, 0, enemy.radius, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
 
-      // Spikes around perimeter
       for (let a = 0; a < 8; a++) {
         const ang = (a * Math.PI) / 4 + enemy.phase * 0.3;
         const sx = Math.cos(ang) * (enemy.radius + 6);
@@ -525,20 +544,17 @@ export class WorldCanvasRenderer {
         ctx.stroke();
       }
 
-      // Eyes
       ctx.fillStyle = '#181425';
       ctx.beginPath();
       ctx.arc(-7, -3, 3, 0, Math.PI * 2);
       ctx.fill();
     } else {
-      // Silhouette 3: Mechanical Red-Dot Laser Drone
       ctx.fillStyle = '#475569';
       ctx.beginPath();
       ctx.roundRect(-17, -12, 34, 24, 8);
       ctx.fill();
       ctx.stroke();
 
-      // Rotor blades on top
       const rotorW = 14 * Math.cos(enemy.phase * 5);
       ctx.strokeStyle = '#E2E8F0';
       ctx.lineWidth = 3;
@@ -547,7 +563,6 @@ export class WorldCanvasRenderer {
       ctx.lineTo(rotorW, -16);
       ctx.stroke();
 
-      // Glowing red laser eye
       ctx.fillStyle = enemy.telegraphTimer > 0 ? '#FEF08A' : '#EF4444';
       ctx.beginPath();
       ctx.arc(-10, 0, 5.5, 0, Math.PI * 2);
@@ -557,72 +572,146 @@ export class WorldCanvasRenderer {
     ctx.restore();
   }
 
-  private drawCat(
+  private drawBarudak(
     ctx: CanvasRenderingContext2D,
     sim: WorldSimulation,
-    skin: CatSkinInfo,
-    pointerOffset: { x: number; y: number }
+    skin: CatSkinInfo
   ): void {
     const cat = sim.cat;
     const isTitle = sim.state === 'title';
     const isMobile = sim.worldWidth < 768;
+    const isWapresActive =
+      sim.powers.wapres.isActive && sim.powers.wapres.remainingDuration > 0;
 
-    // On Title Screen, position the cat in unobstructed negative space so mobile/desktop cards never overlap it
     const drawX = isTitle
       ? isMobile
-        ? sim.worldWidth * 0.28
+        ? sim.worldWidth * 0.5
         : sim.worldWidth * 0.27
       : cat.x;
     const drawY = isTitle
       ? isMobile
-        ? sim.worldHeight * 0.14 + Math.sin(sim.distancePx * 0.02) * 10
+        ? sim.worldHeight * 0.21 + Math.sin(sim.distancePx * 0.02) * 10
         : sim.groundY * 0.46 + Math.sin(sim.distancePx * 0.02) * 16
       : cat.y;
-    const baseScale = isTitle ? (isMobile ? 1.38 : 1.85) : 1.16;
+    const baseScale = isTitle ? (isMobile ? 1.45 : 1.95) : 1.22;
 
     ctx.save();
     ctx.translate(drawX, drawY);
     ctx.rotate(cat.rotation);
     ctx.scale(cat.scaleX * baseScale, cat.scaleY * baseScale);
 
-    // Warm spotlight halo on Title Screen
-    if (isTitle) {
-      const halo = ctx.createRadialGradient(0, 0, 8, 0, 0, 46);
-      halo.addColorStop(0, 'rgba(253, 224, 71, 0.28)');
+    const powerSpec = POWER_ABILITIES[this.equippedRewardId] ?? POWER_ABILITIES.none;
+
+    // Spotlight halo on Title Screen or Active Power Aura
+    if (isTitle || isWapresActive || cat.powerTimer > 0 || this.equippedRewardId !== 'none') {
+      const radius = isTitle ? 46 : isWapresActive ? 46 : cat.powerTimer > 0 ? 40 : 30;
+      const halo = ctx.createRadialGradient(0, 0, 8, 0, 0, radius);
+      const defaultAura =
+        skin.id === 'ninja' ? 'rgba(56, 189, 248, 0.32)' : 'rgba(253, 224, 71, 0.28)';
+      halo.addColorStop(
+        0,
+        isWapresActive
+          ? 'rgba(250, 204, 21, 0.72)'
+          : this.equippedRewardId !== 'none'
+          ? powerSpec.auraColor
+          : defaultAura
+      );
       halo.addColorStop(1, 'rgba(253, 224, 71, 0)');
       ctx.fillStyle = halo;
       ctx.beginPath();
-      ctx.arc(0, 0, 46, 0, Math.PI * 2);
+      ctx.arc(0, 0, radius, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // Invulnerability blink
-    if (cat.invulnTimer > 0 && Math.floor(cat.invulnTimer * 16) % 2 === 0 && cat.dashTimer <= 0) {
+    // Passive Shield Protective Barrier Ring (when 1 charge is available)
+    if (
+      !isTitle &&
+      sim.powers.shield.unlocked &&
+      sim.powers.shield.chargesRemaining > 0
+    ) {
+      ctx.strokeStyle = 'rgba(16, 185, 129, 0.85)';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, 30, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Active Wapres Golden Immunity Ring & Countdown Arc
+    if (isWapresActive) {
+      const ratio = Math.max(
+        0,
+        Math.min(1, sim.powers.wapres.remainingDuration / WAPRES_DURATION_SEC)
+      );
+      ctx.strokeStyle = '#FACC15';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(0, 0, 34, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * ratio);
+      ctx.stroke();
+    }
+
+    // Invulnerability blink (only when not in Wapres mode)
+    if (
+      cat.invulnTimer > 0 &&
+      !isWapresActive &&
+      Math.floor(cat.invulnTimer * 16) % 2 === 0 &&
+      !sim.powers.dash.isActive
+    ) {
       ctx.globalAlpha = 0.65;
     }
 
-    const isFlashed = cat.hitFlashTimer > 0;
-    const bodyFill = isFlashed ? '#FFFFFF' : skin.primaryColor;
-    const bellyFill = isFlashed ? '#FFFFFF' : skin.secondaryColor;
+    // Render Wapres Head Asset during Wapres Ultimate Mode, otherwise character skin sprite
+    if (isWapresActive) {
+      const wapresSource = this.spriteCache.get(WAPRES_ASSET_PATH);
+      if (wapresSource) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(0, 0, 27, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(wapresSource, -28, -28, 56, 56);
+        ctx.restore();
 
-    // Purr Dash aura
-    if (cat.dashTimer > 0) {
-      ctx.fillStyle = 'rgba(56, 189, 248, 0.35)';
+        // Golden Medallion Rim
+        ctx.strokeStyle = '#FACC15';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(0, 0, 27, 0, Math.PI * 2);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = '#FACC15';
+        ctx.beginPath();
+        ctx.arc(0, 0, 24, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Golden Crown / Songkok Crest above Wapres Head
+      ctx.fillStyle = '#FACC15';
+      ctx.strokeStyle = '#181425';
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.ellipse(-4, 0, 34, 24, 0, 0, Math.PI * 2);
+      ctx.moveTo(-14, -24);
+      ctx.lineTo(-10, -35);
+      ctx.lineTo(-3, -28);
+      ctx.lineTo(0, -37);
+      ctx.lineTo(3, -28);
+      ctx.lineTo(10, -35);
+      ctx.lineTo(14, -24);
+      ctx.closePath();
       ctx.fill();
-    }
-
-    // Check if this model uses custom face sprites (4th model: Bang Pirang — render ONLY the face without tail/feet/cat accessories)
-    if (skin.sprites) {
+      ctx.stroke();
+    } else if (skin.sprites) {
       const isHurtExpr =
         cat.hitFlashTimer > 0 ||
-        cat.invulnTimer > 0.35 ||
+        (cat.invulnTimer > 0.35 && !sim.powers.second_chance.isActive) ||
         sim.koSequenceTimer > 0 ||
         sim.state === 'gameover';
       const isJumpExpr =
         !isHurtExpr &&
-        (cat.earFlapTimer > 0 || cat.dashTimer > 0 || cat.vy < -85);
+        (cat.earFlapTimer > 0 ||
+          sim.powers.dash.isActive ||
+          sim.powers.time_freeze.isActive ||
+          cat.vy < -85);
 
       const targetUrl = isHurtExpr
         ? skin.sprites.gethit
@@ -633,148 +722,16 @@ export class WorldCanvasRenderer {
       const spriteSource = this.spriteCache.get(targetUrl);
 
       if (spriteSource) {
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(spriteSource, -28, -28, 56, 56);
       } else {
-        ctx.fillStyle = bodyFill;
+        ctx.fillStyle = skin.primaryColor;
         ctx.beginPath();
-        ctx.arc(0, 0, 20, 0, Math.PI * 2);
+        ctx.arc(0, 0, 22, 0, Math.PI * 2);
         ctx.fill();
       }
-
-      ctx.restore();
-      return;
     }
-
-    ctx.strokeStyle = '#181425';
-    ctx.lineWidth = 3.2;
-    ctx.lineJoin = 'round';
-
-    // 1. Animated wagging cat tail (for procedural cat models 1-3)
-    const tailWag = Math.sin(cat.tailPhase) * 9;
-    ctx.strokeStyle = '#181425';
-    ctx.lineWidth = 8;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(-16, 4);
-    ctx.quadraticCurveTo(-30, -6 + tailWag, -34, -14 + tailWag);
-    ctx.stroke();
-    ctx.strokeStyle = bodyFill;
-    ctx.lineWidth = 4.2;
-    ctx.stroke();
-
-    // 2. Fluttering Superhero Scarf / Cape (for procedural cat models 1-3)
-    ctx.fillStyle = isFlashed ? '#FFFFFF' : skin.capeColor;
-    ctx.strokeStyle = '#181425';
-    ctx.lineWidth = 2.8;
-    ctx.beginPath();
-    ctx.moveTo(-6, -8);
-    ctx.lineTo(-28, -15 - tailWag * 0.4);
-    ctx.lineTo(-24, -3 - tailWag * 0.3);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // 3. Plump Rounded Cat Body (for procedural cat models 1-3)
-    ctx.fillStyle = bodyFill;
-    ctx.beginPath();
-    ctx.ellipse(0, 2, 21, 17, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    // Belly patch
-    ctx.fillStyle = bellyFill;
-    ctx.beginPath();
-    ctx.ellipse(4, 6, 12, 9, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Golden Bell Collar
-    ctx.fillStyle = '#FACC15';
-    ctx.strokeStyle = '#181425';
-    ctx.lineWidth = 2.2;
-    ctx.beginPath();
-    ctx.arc(13, 9, 4.2, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.lineWidth = 3.2;
-
-    // Tabby / Calico forehead & back stripes
-    if (!isFlashed) {
-      ctx.fillStyle = skin.stripeColor;
-      ctx.beginPath();
-      ctx.ellipse(-6, -11, 3, 5, -0.2, 0, Math.PI * 2);
-      ctx.ellipse(-12, -9, 2.5, 4.5, -0.3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // 4. Pointed Cat Ears (Left & Right)
-    const earDrop = cat.earFlapTimer > 0 ? 3 : 0;
-    // Back ear
-    ctx.fillStyle = bodyFill;
-    ctx.beginPath();
-    ctx.moveTo(-6, -11);
-    ctx.lineTo(-13, -27 + earDrop);
-    ctx.lineTo(2, -14);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // Front ear
-    ctx.beginPath();
-    ctx.moveTo(4, -12);
-    ctx.lineTo(12, -28 + earDrop);
-    ctx.lineTo(16, -10);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // Pink inner ear triangle
-    ctx.fillStyle = isFlashed ? '#FFFFFF' : skin.earInnerColor;
-    ctx.beginPath();
-    ctx.moveTo(6, -12);
-    ctx.lineTo(11, -22 + earDrop);
-    ctx.lineTo(13.5, -11);
-    ctx.closePath();
-    ctx.fill();
-
-    // 5. Expressive Cat Eyes (tracks cursor slightly on title screen)
-    const gazeX = isTitle ? pointerOffset.x * 2.2 : 1.5;
-    const gazeY = isTitle ? pointerOffset.y * 2.2 : 0;
-
-    ctx.fillStyle = '#181425';
-    ctx.beginPath();
-    ctx.arc(10 + gazeX, -3 + gazeY, 3.6, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Eye catchlight
-    ctx.fillStyle = '#FFFFFF';
-    ctx.beginPath();
-    ctx.arc(11.2 + gazeX, -4.2 + gazeY, 1.3, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Cute pink nose & whiskers
-    ctx.fillStyle = '#FB7185';
-    ctx.beginPath();
-    ctx.arc(17, 1, 2.3, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.strokeStyle = '#181425';
-    ctx.lineWidth = 1.8;
-    ctx.beginPath();
-    ctx.moveTo(15, 3);
-    ctx.lineTo(25, 1);
-    ctx.moveTo(15, 5);
-    ctx.lineTo(24, 6);
-    ctx.stroke();
-
-    // 6. Flapping Front Paws
-    const pawY = cat.earFlapTimer > 0 ? -5 : 7;
-    ctx.fillStyle = bellyFill;
-    ctx.strokeStyle = '#181425';
-    ctx.lineWidth = 2.6;
-    ctx.beginPath();
-    ctx.ellipse(11, pawY, 6, 4.2, 0.3, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
 
     ctx.restore();
   }
@@ -790,7 +747,6 @@ export class WorldCanvasRenderer {
     ctx.fillStyle = '#7C2D12';
     ctx.fillRect(0, groundY, w, roofHeight);
 
-    // Top trim border
     ctx.fillStyle = '#EA580C';
     ctx.fillRect(0, groundY, w, 12);
 
@@ -801,7 +757,6 @@ export class WorldCanvasRenderer {
     ctx.lineTo(w, groundY);
     ctx.stroke();
 
-    // Scalloped terracotta roof tile pattern scrolling horizontally
     const tileW = 48;
     const offset = distancePx % tileW;
     ctx.strokeStyle = '#431407';

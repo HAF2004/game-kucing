@@ -8,4 +8,6 @@ coverage/
 !.env.example
 .vercel/
 .playwright-cli/
-
+.data/
+*.sqlite
+*.sqlite-*

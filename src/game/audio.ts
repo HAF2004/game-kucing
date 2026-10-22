@@ -7,7 +7,9 @@ class GameAudioEngine {
   private ensureContext(): AudioContext | null {
     if (this.muted || typeof window === 'undefined') return null;
     if (!this.ctx) {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (AudioCtx) {
         this.ctx = new AudioCtx();
       }
@@ -53,8 +55,8 @@ class GameAudioEngine {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(587.33, now); // D5
-    osc.frequency.setValueAtTime(880, now + 0.06); // A5
+    osc.frequency.setValueAtTime(587.33, now);
+    osc.frequency.setValueAtTime(880, now + 0.06);
 
     gain.gain.setValueAtTime(0.13, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.19);
@@ -102,6 +104,45 @@ class GameAudioEngine {
     gain.connect(ctx.destination);
     osc.start(now);
     osc.stop(now + 0.26);
+  }
+
+  public playLaserBlast(): void {
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(980, now);
+    osc.frequency.exponentialRampToValueAtTime(140, now + 0.32);
+
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.34);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.34);
+  }
+
+  public playShockwave(): void {
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(160, now);
+    osc.frequency.exponentialRampToValueAtTime(620, now + 0.18);
+    osc.frequency.exponentialRampToValueAtTime(95, now + 0.38);
+
+    gain.gain.setValueAtTime(0.18, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.4);
   }
 
   public playTelegraphCue(): void {
@@ -183,11 +224,13 @@ class GameAudioEngine {
   public dispatchSimulationEvents(events: SimulationEvents): void {
     if (events.flapped) this.playFlap();
     if (events.dashed) this.playDash();
+    if (events.firedLaser) this.playLaserBlast();
+    if (events.triggeredShockwave) this.playShockwave();
     if (events.scoredPipe) this.playScorePipe();
     if (events.collectedGoldenFish) this.playFishPickup(true);
     else if (events.collectedFish) this.playFishPickup(false);
     if (events.enemyTelegraphStarted) this.playTelegraphCue();
-    if (events.enemyDefeated) this.playEnemyDefeated();
+    if (events.enemyDefeated || events.obstacleDestroyed) this.playEnemyDefeated();
     if (events.playerHurt) this.playHurt();
     if (events.gameOverTriggered) this.playGameOver();
   }

@@ -27,13 +27,19 @@
 }
 
 .hud-stroke {
-  paint-order: stroke fill;
-  -webkit-text-stroke: 4px #181425;
-  text-shadow: 0 3px 0 #181425;
+  text-shadow:
+    -2px -2px 0 #181425,
+     2px -2px 0 #181425,
+    -2px  2px 0 #181425,
+     2px  2px 0 #181425,
+     0px  3px 0 #181425;
 }
 
 .hud-stroke-sm {
-  paint-order: stroke fill;
-  -webkit-text-stroke: 2.5px #181425;
-  text-shadow: 0 2px 0 #181425;
+  text-shadow:
+    -1.5px -1.5px 0 #181425,
+     1.5px -1.5px 0 #181425,
+    -1.5px  1.5px 0 #181425,
+     1.5px  1.5px 0 #181425,
+     0px    2px   0 #181425;
 }

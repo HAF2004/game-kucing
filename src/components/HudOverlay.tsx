@@ -1,4 +1,12 @@
 import React from 'react';
+import {
+  CorePowerId,
+  PASSIVE_POWER_IDS,
+  POWER_ABILITIES,
+  PowerAbilityId,
+  PowerAbilitySpec,
+} from '../game/achievementDefinitions';
+import { RunPowerMap } from '../game/types';
 
 export interface HudSnapshot {
   score: number;
@@ -7,24 +15,29 @@ export interface HudSnapshot {
   hp: number;
   maxHp: number;
   dashEnergy: number;
+  dashCooldown: number;
+  powerActive: boolean;
   dashReady: boolean;
   fishCollected: number;
+  powers?: RunPowerMap;
 }
 
 interface HudOverlayProps {
   hud: HudSnapshot;
   muted: boolean;
+  equippedPower: PowerAbilitySpec;
   dashBarRef: React.RefObject<HTMLDivElement | null>;
   dashGhostRef: React.RefObject<HTMLDivElement | null>;
   onToggleMute: () => void;
   onTogglePause: () => void;
   onRestart: () => void;
-  onTriggerDash: () => void;
+  onTriggerDash: (powerId?: PowerAbilityId) => void;
 }
 
 export const HudOverlay: React.FC<HudOverlayProps> = ({
   hud,
   muted,
+  equippedPower,
   dashBarRef,
   dashGhostRef,
   onToggleMute,
@@ -32,120 +45,292 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
   onRestart,
   onTriggerDash,
 }) => {
+  const isPowerUnlocked =
+    equippedPower.reward_id !== 'none' && equippedPower.category === 'active';
+  const energyPct = Math.round(hud.dashEnergy);
+
+  const formatChosenActiveSkillState = (): {
+    ready: boolean;
+    active: boolean;
+    unlocked: boolean;
+    statusText: string;
+  } => {
+    if (!isPowerUnlocked) {
+      return {
+        ready: false,
+        active: false,
+        unlocked: false,
+        statusText: 'BELUM DIPILIH',
+      };
+    }
+    const id = equippedPower.reward_id as CorePowerId;
+    const p = hud.powers?.[id];
+    if (!p || !p.unlocked) {
+      return {
+        ready: false,
+        active: false,
+        unlocked: false,
+        statusText:
+          equippedPower.unlockScore === 0
+            ? 'First Play'
+            : `${equippedPower.unlockScore} Skor`,
+      };
+    }
+    if (p.isActive && p.remainingDuration > 0) {
+      return {
+        ready: false,
+        active: true,
+        unlocked: true,
+        statusText: `AKTIF ${p.remainingDuration.toFixed(1)}s`,
+      };
+    }
+    if (p.maxChargesPerRun !== null && p.chargesRemaining <= 0) {
+      return {
+        ready: false,
+        active: false,
+        unlocked: true,
+        statusText: 'HABIS (0/1)',
+      };
+    }
+    if (p.remainingCooldown > 0) {
+      return {
+        ready: false,
+        active: false,
+        unlocked: true,
+        statusText: `CD ${Math.ceil(p.remainingCooldown)}s`,
+      };
+    }
+    return {
+      ready: true,
+      active: false,
+      unlocked: true,
+      statusText: p.maxChargesPerRun !== null ? `SIAP (${p.chargesRemaining}/1)` : 'SIAP!',
+    };
+  };
+
+  const formatPassiveSkillBadge = (id: CorePowerId): {
+    unlocked: boolean;
+    available: boolean;
+    label: string;
+  } => {
+    const p = hud.powers?.[id];
+    const spec = POWER_ABILITIES[id];
+    if (!p || !p.unlocked) {
+      return {
+        unlocked: false,
+        available: false,
+        label: `${spec.shortName}: ${spec.unlockScore}`,
+      };
+    }
+    if (id === 'magnet') {
+      return {
+        unlocked: true,
+        available: true,
+        label: 'Magnet: AKTIF',
+      };
+    }
+    const hasCharge = p.chargesRemaining > 0;
+    return {
+      unlocked: true,
+      available: hasCharge,
+      label: `${spec.shortName}: ${hasCharge ? 'SIAP (1/1)' : 'TERPAKAI'}`,
+    };
+  };
+
+  const chosenSkillState = formatChosenActiveSkillState();
+
   return (
     <div
-      className="fixed inset-0 z-10 pointer-events-none flex flex-col justify-between p-4 md:p-6"
-      aria-label="HUD Permainan"
+      className="fixed inset-0 z-10 pointer-events-none flex flex-col justify-between p-2.5 sm:p-3.5 md:p-6"
+      aria-label="HUD Permainan Barudak Terbang"
     >
-      {/* Top Perimeter Bar: 3 Compact Corner/Edge Clusters */}
-      <div className="flex items-start justify-between gap-4">
-        {/* Cluster 1 (Top-Left): 3 Discrete Paw Vitality Sockets + Purr Dash Meter */}
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-2" aria-label={`Nyawa Kucing: ${hud.hp} dari ${hud.maxHp}`}>
-            <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#FDE68A] hud-stroke-sm mr-1">
+      {/* Top Perimeter Bar: 3-Column Grid guarantees zero overlap and zero right-edge clipping */}
+      <div className="grid grid-cols-3 items-start w-full gap-1.5 sm:gap-2 md:gap-4">
+        {/* Column 1 (Top-Left): Vitality Sockets + Passive Skills Status Strip + Single Chosen Active Skill */}
+        <div className="justify-self-start flex flex-col gap-1.5 min-w-0">
+          <div
+            className="inline-flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-1.5 bg-[#181425]/85 border-2 border-[#362452] rounded-xl px-2 py-1 sm:px-2.5 sm:py-1.5 shadow-[0_3px_0_#181425] w-fit"
+            aria-label={`Nyawa Barudak: ${hud.hp} dari ${hud.maxHp}`}
+          >
+            <span className="text-[9px] sm:text-[10px] md:text-[11px] font-extrabold uppercase tracking-wider text-[#FDE68A] leading-none">
               NYAWA
             </span>
-            {Array.from({ length: hud.maxHp }).map((_, i) => {
-              const state: 'full' | 'cracked' | 'empty' =
-                i < hud.hp
-                  ? i === hud.hp - 1 && hud.hp === 1
-                    ? 'cracked'
-                    : 'full'
-                  : 'empty';
-              return (
-                <svg
-                  key={i}
-                  viewBox="0 0 28 28"
-                  className="w-7 h-7 drop-shadow-[0_2px_0_#181425]"
-                  aria-hidden="true"
-                >
-                  {/* Dark outer silhouette */}
-                  <path
-                    d="M14 24 C7 20 3 14 3 9.5 C3 6 5.8 3.5 9 3.5 C11.2 3.5 13 4.8 14 6.5 C15 4.8 16.8 3.5 19 3.5 C22.2 3.5 25 6 25 9.5 C25 14 21 20 14 24 Z"
-                    fill={
-                      state === 'full'
-                        ? '#F43F5E'
-                        : state === 'cracked'
-                        ? '#FB923C'
-                        : '#261B3A'
-                    }
-                    stroke="#181425"
-                    strokeWidth="2.8"
-                  />
-                  {/* Top highlight or crack detail */}
-                  {state === 'full' && (
-                    <circle cx="9.5" cy="9" r="2.2" fill="#FFE4E6" />
-                  )}
-                  {state === 'cracked' && (
+            <div className="flex items-center gap-1 sm:gap-1.5">
+              {Array.from({ length: hud.maxHp }).map((_, i) => {
+                const state: 'full' | 'cracked' | 'empty' =
+                  i < hud.hp
+                    ? i === hud.hp - 1 && hud.hp === 1
+                      ? 'cracked'
+                      : 'full'
+                    : 'empty';
+                return (
+                  <svg
+                    key={i}
+                    viewBox="0 0 28 28"
+                    className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 shrink-0 drop-shadow-[0_1px_0_#181425]"
+                    aria-hidden="true"
+                  >
                     <path
-                      d="M14 6 L12 12 L16 15 L13 22"
+                      d="M14 24 C7 20 3 14 3 9.5 C3 6 5.8 3.5 9 3.5 C11.2 3.5 13 4.8 14 6.5 C15 4.8 16.8 3.5 19 3.5 C22.2 3.5 25 6 25 9.5 C25 14 21 20 14 24 Z"
+                      fill={
+                        state === 'full'
+                          ? '#F43F5E'
+                          : state === 'cracked'
+                          ? '#FB923C'
+                          : '#261B3A'
+                      }
                       stroke="#181425"
-                      strokeWidth="2.2"
-                      fill="none"
+                      strokeWidth="2.8"
                     />
-                  )}
-                </svg>
+                    {state === 'full' && (
+                      <circle cx="9.5" cy="9" r="2.2" fill="#FFE4E6" />
+                    )}
+                    {state === 'cracked' && (
+                      <path
+                        d="M14 6 L12 12 L16 15 L13 22"
+                        stroke="#181425"
+                        strokeWidth="2.2"
+                        fill="none"
+                      />
+                    )}
+                  </svg>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Passive Skills Status Strip (Shield 100, Magnet 300, Second Chance 400) — Status-only, no manual button */}
+          <div
+            data-testid="hud-passive-skills"
+            className="flex flex-wrap items-center gap-1 max-w-[260px] sm:max-w-none"
+            aria-label="Status Skill Pasif"
+          >
+            {PASSIVE_POWER_IDS.map((pid) => {
+              const badge = formatPassiveSkillBadge(pid);
+              const spec = POWER_ABILITIES[pid];
+              return (
+                <div
+                  key={pid}
+                  data-testid={`passive-badge-${pid}`}
+                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg border text-[9px] sm:text-[10px] font-extrabold font-mono-tabular whitespace-nowrap ${
+                    !badge.unlocked
+                      ? 'bg-[#181425]/70 border-[#362452] text-[#94A3B8] opacity-75'
+                      : badge.available
+                      ? 'bg-[#181425]/95 border-[#FACC15] text-[#FFF8E7]'
+                      : 'bg-[#181425]/85 border-[#475569] text-[#94A3B8]'
+                  }`}
+                >
+                  <span
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{
+                      backgroundColor:
+                        badge.unlocked && badge.available ? spec.primaryColor : '#475569',
+                    }}
+                  />
+                  <span>{badge.label}</span>
+                </div>
               );
             })}
           </div>
 
-          {/* Continuous Purr Dash Meter with Delayed Ghost Drain Bar */}
-          <button
-            type="button"
-            tabIndex={-1}
-            onClick={(e) => {
-              e.currentTarget.blur();
-              onTriggerDash();
-            }}
-            aria-label="Aktifkan Seruduk Cepat (Shift)"
-            className="pointer-events-auto group flex items-center gap-2 text-left cursor-pointer"
-          >
-            <div className="w-32 h-3.5 bg-[#1E152E] border-2 border-[#181425] rounded-md overflow-hidden relative shadow-[0_2px_0_#181425]">
-              {/* Delayed trailing ghost bar */}
-              <div
-                ref={dashGhostRef}
-                className="absolute inset-y-0 left-0 bg-[#FDE047] transition-all duration-300 origin-left"
-                style={{ width: `${Math.round(hud.dashEnergy)}%` }}
-              />
-              {/* Live fill bar */}
-              <div
-                ref={dashBarRef}
-                className={`absolute inset-y-0 left-0 ${
-                  hud.dashReady ? 'bg-[#38BDF8]' : 'bg-[#64748B]'
-                }`}
-                style={{ width: `${Math.round(hud.dashEnergy)}%` }}
-              />
-            </div>
-            <span className="text-[11px] font-bold font-mono-tabular text-[#FFF8E7] hud-stroke-sm">
-              DASH [Shift]
-            </span>
-          </button>
+          {/* Desktop Single Chosen Active Skill Card (Locked at game start — no mid-run switching) */}
+          <div className="hidden md:flex items-center gap-2 pointer-events-auto">
+            <button
+              type="button"
+              tabIndex={-1}
+              data-testid="desktop-equipped-skill-btn"
+              disabled={!chosenSkillState.ready}
+              onClick={(e) => {
+                e.currentTarget.blur();
+                if (chosenSkillState.ready) {
+                  onTriggerDash(equippedPower.reward_id);
+                }
+              }}
+              aria-label={`Aktifkan Skill Pilihan ${equippedPower.shortName} [Shift / E]`}
+              className={`flex flex-col gap-1 px-3 py-2 rounded-xl border-2 border-[#181425] shadow-[0_3px_0_#181425] text-left transition-transform cursor-pointer disabled:cursor-default min-w-[190px] ${
+                chosenSkillState.active
+                  ? 'bg-[#362452] ring-2 ring-[#FACC15]'
+                  : chosenSkillState.ready
+                  ? 'bg-[#261B3A] hover:bg-[#362452] ring-1 ring-[#FDE047]'
+                  : 'bg-[#181425]/85 opacity-80'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2 w-full">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  {equippedPower.iconAsset ? (
+                    <img
+                      src={equippedPower.iconAsset}
+                      alt={equippedPower.shortName}
+                      className="w-5 h-5 rounded-full border border-[#FACC15] object-cover shrink-0"
+                    />
+                  ) : (
+                    <span
+                      className="w-3 h-3 rounded-full border border-[#181425] shrink-0"
+                      style={{
+                        backgroundColor: chosenSkillState.unlocked
+                          ? equippedPower.primaryColor
+                          : '#475569',
+                      }}
+                    />
+                  )}
+                  <span className="text-[11px] font-extrabold text-[#FFF8E7] truncate">
+                    {isPowerUnlocked ? equippedPower.shortName : 'Tanpa Skill'}
+                  </span>
+                  <span className="text-[9px] font-extrabold text-[#FDE68A] whitespace-nowrap">
+                    [SHIFT]
+                  </span>
+                </div>
+                <span className="text-[9px] font-mono-tabular font-extrabold text-[#34D399] whitespace-nowrap">
+                  {chosenSkillState.statusText}
+                </span>
+              </div>
+
+              {/* Continuous Readiness Bar */}
+              <div className="relative w-full h-1.5 bg-[#120D1D] border border-[#181425] rounded-full overflow-hidden">
+                <div
+                  ref={dashGhostRef}
+                  className="absolute inset-y-0 left-0 bg-[#FDE68A]/40 transition-all duration-150"
+                  style={{ width: `${isPowerUnlocked ? energyPct : 0}%` }}
+                />
+                <div
+                  ref={dashBarRef}
+                  className="relative h-full transition-none"
+                  style={{
+                    width: `${isPowerUnlocked ? energyPct : 0}%`,
+                    backgroundColor: equippedPower.primaryColor || '#F97316',
+                  }}
+                />
+              </div>
+            </button>
+          </div>
         </div>
 
-        {/* Cluster 2 (Top-Center): Hero Score Readout (~3:1 Hero-to-Kicker scale) */}
-        <div className="flex flex-col items-center text-center -mt-1">
-          <span className="text-[11px] font-extrabold uppercase tracking-widest text-[#FDE68A] hud-stroke-sm">
+        {/* Column 2 (Top-Center): Hero Score Readout */}
+        <div className="justify-self-center flex flex-col items-center text-center min-w-0">
+          <span className="text-[10px] md:text-[11px] font-extrabold uppercase tracking-wider text-[#FDE68A] hud-stroke-sm whitespace-nowrap">
             SKOR ATAP
           </span>
           <div
-            className="text-4xl md:text-5xl font-extrabold font-mono-tabular text-[#FFF8E7] hud-stroke leading-none"
+            className="text-3xl sm:text-4xl md:text-5xl font-extrabold font-mono-tabular text-[#FFF8E7] hud-stroke leading-none mt-0.5"
             data-testid="hud-score"
           >
             {Math.round(hud.score)}
           </div>
-          <div className="mt-1 flex items-center gap-2 text-xs font-bold font-mono-tabular text-[#FDE047] hud-stroke-sm">
+          <div className="mt-1 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#181425]/90 border border-[#362452] shadow-[0_2px_0_#181425] text-[10px] md:text-xs font-extrabold font-mono-tabular text-[#FDE047] whitespace-nowrap">
             <span>IKAN: {Math.round(hud.fishCollected)}</span>
             {hud.combo > 1 && (
               <>
-                <span aria-hidden="true">·</span>
-                <span>KOMBO x{Math.round(hud.combo)}</span>
+                <span className="text-[#94A3B8]" aria-hidden="true">
+                  |
+                </span>
+                <span className="text-[#34D399]">KOMBO x{Math.round(hud.combo)}</span>
               </>
             )}
           </div>
         </div>
 
-        {/* Cluster 3 (Top-Right): Compact Square SVG Utility Buttons (Mute [M], Pause [P], Restart [R]) */}
-        <div className="flex items-center gap-2 pointer-events-auto">
+        {/* Column 3 (Top-Right): Compact Square SVG Utility Buttons (never clips off right edge) */}
+        <div className="justify-self-end flex items-center gap-1 sm:gap-1.5 md:gap-2 pointer-events-auto shrink-0">
           <button
             type="button"
             tabIndex={-1}
@@ -153,11 +338,10 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
               e.currentTarget.blur();
               onToggleMute();
             }}
-            aria-label={muted ? 'Nyalakan Suara (M)' : 'Bisukan Suara (M)'}
-            title="Suara [M]"
-            className="w-10 h-10 flex items-center justify-center rounded-xl bg-[#261B3A] hover:bg-[#362452] border-[2.5px] border-[#181425] shadow-[0_3px_0_#181425] text-[#FFF8E7] cursor-pointer"
+            aria-label={muted ? 'Nyalakan Suara' : 'Bisukan Suara'}
+            className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 shrink-0 flex items-center justify-center rounded-xl bg-[#261B3A] hover:bg-[#362452] border-2 sm:border-[2.5px] border-[#181425] shadow-[0_3px_0_#181425] text-[#FFF8E7] cursor-pointer"
           >
-            <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.4">
+            <svg viewBox="0 0 24 24" className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" strokeWidth="2.4">
               <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor" />
               {muted ? (
                 <path d="M22 9l-6 6M16 9l6 6" stroke="#F43F5E" strokeLinecap="round" />
@@ -174,11 +358,10 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
               e.currentTarget.blur();
               onRestart();
             }}
-            aria-label="Ulangi Permainan (R)"
-            title="Ulangi [R]"
-            className="w-10 h-10 flex items-center justify-center rounded-xl bg-[#261B3A] hover:bg-[#362452] border-[2.5px] border-[#181425] shadow-[0_3px_0_#181425] text-[#FFF8E7] cursor-pointer"
+            aria-label="Ulangi Permainan"
+            className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 shrink-0 flex items-center justify-center rounded-xl bg-[#261B3A] hover:bg-[#362452] border-2 sm:border-[2.5px] border-[#181425] shadow-[0_3px_0_#181425] text-[#FFF8E7] cursor-pointer"
           >
-            <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.4">
+            <svg viewBox="0 0 24 24" className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" strokeWidth="2.4">
               <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" strokeLinecap="round" strokeLinejoin="round" />
               <path d="M3 3v5h5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
@@ -191,11 +374,10 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
               e.currentTarget.blur();
               onTogglePause();
             }}
-            aria-label="Jeda Permainan (P)"
-            title="Jeda [P]"
-            className="w-10 h-10 flex items-center justify-center rounded-xl bg-[#261B3A] hover:bg-[#362452] border-[2.5px] border-[#181425] shadow-[0_3px_0_#181425] text-[#FFF8E7] cursor-pointer"
+            aria-label="Jeda Permainan"
+            className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 shrink-0 flex items-center justify-center rounded-xl bg-[#261B3A] hover:bg-[#362452] border-2 sm:border-[2.5px] border-[#181425] shadow-[0_3px_0_#181425] text-[#FFF8E7] cursor-pointer"
           >
-            <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor">
+            <svg viewBox="0 0 24 24" className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor">
               <rect x="6" y="4" width="4" height="16" rx="1" />
               <rect x="14" y="4" width="4" height="16" rx="1" />
             </svg>
@@ -203,11 +385,90 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
         </div>
       </div>
 
-      {/* Bottom Subtle Control Reminder on Mobile / Desktop */}
-      <div className="flex justify-between items-end text-[11px] font-bold text-[#FDE68A] hud-stroke-sm">
-        <span>REKOR: {Math.round(hud.bestScore)}</span>
-        <span>[SPASI / KLIK] KEPAK · [SHIFT] SERUDUK</span>
+      {/* MOBILE DEDICATED TOUCH ACTION DECK (Single Chosen Skill Only — No mid-run switching) */}
+      <div
+        data-testid="mobile-action-deck"
+        className="flex md:hidden flex-col gap-1.5 w-full pointer-events-none pb-0.5"
+      >
+        <div className="flex items-center justify-between gap-2 w-full">
+          <div className="px-2.5 py-1.5 rounded-xl bg-[#181425]/90 border border-[#362452] text-[10px] font-bold text-[#FDE68A] leading-none whitespace-nowrap">
+            REKOR ATAP: {Math.round(hud.bestScore)}
+          </div>
+          <span className="px-2.5 py-1 rounded-xl bg-[#181425]/85 border border-[#362452] text-[10px] font-bold text-[#E2E8F0] leading-none whitespace-nowrap">
+            Ketuk Layar = Terbang
+          </span>
+        </div>
+
+        <button
+          type="button"
+          data-testid="mobile-power-btn"
+          disabled={!chosenSkillState.ready}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            if (chosenSkillState.ready) {
+              onTriggerDash(equippedPower.reward_id);
+            }
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            e.currentTarget.blur();
+          }}
+          aria-label={
+            isPowerUnlocked
+              ? `Aktifkan Skill ${equippedPower.shortName}`
+              : 'Skill Aktif Terkunci'
+          }
+          className={`pointer-events-auto w-full flex items-center justify-between py-2.5 px-4 rounded-2xl border-[2.5px] border-[#181425] shadow-[0_4px_0_#181425] active:translate-y-0.5 transition-transform select-none ${
+            chosenSkillState.active
+              ? 'bg-[#362452] text-[#FDE047] ring-2 ring-[#FACC15]'
+              : chosenSkillState.ready
+              ? 'bg-[#261B3A] text-[#FFF8E7] ring-1 ring-[#FACC15]'
+              : 'bg-[#181425]/90 text-[#94A3B8] opacity-85'
+          }`}
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            {equippedPower.iconAsset ? (
+              <img
+                src={equippedPower.iconAsset}
+                alt={equippedPower.shortName}
+                className="w-6 h-6 rounded-full border border-[#FACC15] object-cover shrink-0"
+              />
+            ) : (
+              <span
+                className="w-3.5 h-3.5 rounded-full border border-[#181425] shrink-0"
+                style={{
+                  backgroundColor: chosenSkillState.unlocked
+                    ? equippedPower.primaryColor
+                    : '#475569',
+                }}
+              />
+            )}
+            <div className="text-left min-w-0">
+              <div className="font-display text-xs font-extrabold truncate">
+                SKILL AKTIF: {isPowerUnlocked ? equippedPower.shortName.toUpperCase() : 'TERKUNCI'}
+              </div>
+              <div className="text-[10px] font-semibold text-[#FDE68A] truncate">
+                Dipilih di awal game · Tidak bisa diganti saat terbang
+              </div>
+            </div>
+          </div>
+
+          <span className="px-2.5 py-1 rounded-xl bg-[#181126] border border-[#362452] text-[11px] text-[#34D399] font-mono-tabular font-extrabold whitespace-nowrap">
+            {chosenSkillState.statusText}
+          </span>
+        </button>
+      </div>
+
+      {/* DESKTOP BOTTOM CONTROL REMINDER (Hidden on mobile) */}
+      <div className="hidden md:flex justify-between items-end text-[11px] font-bold text-[#FDE68A] hud-stroke-sm">
+        <span className="px-2.5 py-1 rounded-lg bg-[#181425]/80 border border-[#362452]">
+          REKOR: {Math.round(hud.bestScore)} · SKILL PILIHAN: {equippedPower.shortName.toUpperCase()} (TERKUNCI SAAT TERBANG)
+        </span>
+        <span className="px-2.5 py-1 rounded-lg bg-[#181425]/80 border border-[#362452]">
+          [SPASI / KLIK] TERBANG · [SHIFT / E] AKTIFKAN {equippedPower.shortName.toUpperCase()} · [P] JEDA
+        </span>
       </div>
     </div>
   );
 };
+

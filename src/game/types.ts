@@ -1,6 +1,8 @@
+import { CorePowerId, PowerAbilityId, PowerCategory } from './achievementDefinitions';
+
 export type GameState = 'title' | 'playing' | 'paused' | 'gameover';
 
-export type CatSkinId = 'oyen' | 'mochi' | 'kopi' | 'pirang';
+export type CatSkinId = 'pirang' | 'ninja' | 'oyen' | 'mochi' | 'kopi';
 
 export interface CatSkinSprites {
   idle: string;
@@ -20,53 +22,57 @@ export interface CatSkinInfo {
   sprites?: CatSkinSprites;
 }
 
-export const CAT_SKINS: CatSkinInfo[] = [
-  {
-    id: 'oyen',
-    name: 'Oyen Barbar',
-    role: 'Kucing Oranye Gesit · Lompatan Stabil',
-    primaryColor: '#F97316',
-    secondaryColor: '#FFEDD5',
-    earInnerColor: '#FDA4AF',
-    stripeColor: '#C2410C',
-    capeColor: '#EF4444',
+export const BARUDAK_SKIN: CatSkinInfo = {
+  id: 'pirang',
+  name: 'Barudak Pirang',
+  role: 'Jagoan Atap Senja · 4 Nyawa & Penguasa Power',
+  primaryColor: '#FBBF24',
+  secondaryColor: '#FEF3C7',
+  earInnerColor: '#FB7185',
+  stripeColor: '#B45309',
+  capeColor: '#8B5CF6',
+  sprites: {
+    idle: '/assets/aistudio/pirang_idle.webp',
+    jump: '/assets/aistudio/pirang_jump.webp',
+    gethit: '/assets/aistudio/pirang_gethit.webp',
   },
-  {
-    id: 'mochi',
-    name: 'Mochi Calico',
-    role: 'Kucing Belang Tiga · Magnet Ikan +15%',
-    primaryColor: '#FFFBEB',
-    secondaryColor: '#F59E0B',
-    earInnerColor: '#F472B6',
-    stripeColor: '#451A03',
-    capeColor: '#10B981',
+};
+
+export const BARUDAK_NINJA_SKIN: CatSkinInfo = {
+  id: 'ninja',
+  name: 'Barudak Ninja',
+  role: 'Bayangan Langit Malam · 4 Nyawa & Refleks Kilat',
+  primaryColor: '#38BDF8',
+  secondaryColor: '#E0F2FE',
+  earInnerColor: '#818CF8',
+  stripeColor: '#0284C7',
+  capeColor: '#6366F1',
+  sprites: {
+    idle: '/assets/aistudio/ninja_idle.webp',
+    jump: '/assets/aistudio/ninja_jump.webp',
+    gethit: '/assets/aistudio/ninja_gethit.webp',
   },
-  {
-    id: 'kopi',
-    name: 'Kopi Tuxedo',
-    role: 'Kucing Hitam Elegan · Dash Lebih Cepat',
-    primaryColor: '#27272A',
-    secondaryColor: '#F8FAFC',
-    earInnerColor: '#FB7185',
-    stripeColor: '#09090B',
-    capeColor: '#FACC15',
-  },
-  {
-    id: 'pirang',
-    name: 'Bang Pirang',
-    role: 'Model Spesial · Ekspresi Dinamis & +1 Nyawa',
-    primaryColor: '#FBBF24',
-    secondaryColor: '#FEF3C7',
-    earInnerColor: '#FB7185',
-    stripeColor: '#B45309',
-    capeColor: '#8B5CF6',
-    sprites: {
-      idle: '/assets/aistudio/idle_782d11ad.png',
-      jump: '/assets/aistudio/jump_6e4ea823.png',
-      gethit: '/assets/aistudio/gethit_ab92eb12.png',
-    },
-  },
-];
+};
+
+export const CAT_SKINS: CatSkinInfo[] = [BARUDAK_SKIN, BARUDAK_NINJA_SKIN];
+
+export function getCharacterSkin(skinId: CatSkinId): CatSkinInfo {
+  return CAT_SKINS.find((s) => s.id === skinId) ?? BARUDAK_SKIN;
+}
+
+export interface PowerRuntimeState {
+  id: CorePowerId;
+  category: PowerCategory;
+  unlocked: boolean;
+  isActive: boolean;
+  remainingDuration: number;
+  remainingCooldown: number;
+  chargesRemaining: number;
+  maxChargesPerRun: number | null;
+  activationCount: number;
+}
+
+export type RunPowerMap = Record<CorePowerId, PowerRuntimeState>;
 
 export type EnemyArchetype = 'crow_charger' | 'balloon_weaver' | 'laser_drone';
 
@@ -84,7 +90,7 @@ export interface EnemyHazard {
   telegraphTimer: number;
   telegraphMax: number;
   hasTriggeredAttack: boolean;
-  /** KO animation timer when defeated by Purr Dash */
+  /** KO animation timer when defeated by Power Ability */
   koTimer: number;
   active: boolean;
 }
@@ -101,6 +107,8 @@ export interface PipeColumn {
   oscillateSpeed: number;
   phase: number;
   style: 'chimney' | 'bamboo';
+  /** True when vaporized/cleared */
+  destroyed?: boolean;
 }
 
 export interface FishPickup {
@@ -135,6 +143,14 @@ export interface PlayerCat {
   earFlapTimer: number;
   /** Opening safe autopilot / glide assist so player survives first few seconds without input */
   openingGraceTimer: number;
+  /** Currently selected active Power Ability */
+  activePower: PowerAbilityId;
+  /** Remaining duration of active power effect */
+  powerTimer: number;
+  /** Remaining duration of laser beam visual & hitbox */
+  laserTimer: number;
+  /** Expanding radius for shockwave visual (> 0 when active) */
+  shockwaveRadius: number;
 }
 
 export interface RunSnapshot {
@@ -150,6 +166,13 @@ export interface RunSnapshot {
 export interface SimulationEvents {
   flapped: boolean;
   dashed: boolean;
+  timeFreezeActivated: boolean;
+  wapresActivated: boolean;
+  shieldBlocked: boolean;
+  secondChanceRevived: boolean;
+  firedLaser: boolean;
+  triggeredShockwave: boolean;
+  obstacleDestroyed: boolean;
   scoredPipe: boolean;
   collectedFish: boolean;
   collectedGoldenFish: boolean;
@@ -165,6 +188,7 @@ export interface WorldSimulation {
   worldWidth: number;
   worldHeight: number;
   groundY: number;
+  baseScrollSpeed: number;
   scrollSpeed: number;
   distancePx: number;
   score: number;
@@ -180,6 +204,7 @@ export interface WorldSimulation {
   spawnEnemyTimer: number;
   nextEntityId: number;
   cat: PlayerCat;
+  powers: RunPowerMap;
   pipes: PipeColumn[];
   enemies: EnemyHazard[];
   fishes: FishPickup[];

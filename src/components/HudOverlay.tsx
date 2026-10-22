@@ -185,53 +185,6 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
             </div>
           </div>
 
-          {/* Desktop single selected power control, centered beneath the score. */}
-          <div className="hud-desktop-power fixed left-1/2 top-[7.5rem] -translate-x-1/2 z-20 flex-col items-center gap-1.5 pointer-events-auto">
-            <div className="text-center leading-tight">
-              <div className="text-[11px] font-extrabold text-[#FFF8E7]">
-                {isPowerUnlocked ? equippedPower.shortName : 'Tanpa Power'}
-              </div>
-              {isManualPower && (
-                <div className="text-[9px] font-extrabold text-[#FDE68A]">[E] AKTIFKAN</div>
-              )}
-            </div>
-            <button
-              type="button"
-              tabIndex={-1}
-              data-testid="desktop-equipped-skill-btn"
-              disabled={!chosenSkillState.ready}
-              onClick={(e) => {
-                e.currentTarget.blur();
-                if (chosenSkillState.ready) {
-                  onTriggerDash(equippedPower.reward_id);
-                }
-              }}
-              aria-label={`Aktifkan Skill Pilihan ${equippedPower.shortName} [E]`}
-              className={`relative w-[4.5rem] h-[4.5rem] shrink-0 rounded-full border-[3px] border-[#181425] shadow-[0_4px_0_#181425] flex items-center justify-center transition-transform cursor-pointer disabled:cursor-default ${
-                chosenSkillState.active
-                  ? 'bg-[#362452] ring-2 ring-[#FACC15]'
-                  : chosenSkillState.ready
-                  ? 'bg-[#261B3A] hover:bg-[#362452] ring-1 ring-[#FDE047]'
-                  : 'bg-[#181425]/85 opacity-80'
-              }`}
-            >
-              <span
-                className="absolute inset-0 rounded-full"
-                style={{
-                  background: `conic-gradient(${equippedPower.primaryColor || '#F97316'} ${isManualPower ? energyPct : 100}%, #362452 0)`,
-                }}
-                aria-hidden="true"
-              />
-              <span className="relative rounded-full bg-[#181425] p-1">
-                <PowerIcon power={equippedPower} size="lg" />
-              </span>
-              <span className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded-full bg-[#181126]/95 border border-[#FACC15] text-[9px] font-mono-tabular font-extrabold text-[#34D399] whitespace-nowrap shadow-[0_2px_0_#181425]">
-                {chosenSkillState.statusText}
-              </span>
-              <span ref={dashGhostRef} className="hidden" aria-hidden="true" />
-              <span ref={dashBarRef} className="hidden" aria-hidden="true" />
-            </button>
-          </div>
         </div>
 
         {/* Column 2 (Top-Center): Hero Score Readout */}
@@ -371,9 +324,11 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
             <span className="relative rounded-full bg-[#181425] p-1">
               <PowerIcon power={equippedPower} size="md" />
             </span>
-            <span className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded-full bg-[#181126]/95 border border-[#FACC15] text-[9px] text-[#34D399] font-mono-tabular font-extrabold whitespace-nowrap shadow-[0_2px_0_#181425]">
+            <span className="absolute -right-2 -bottom-1 px-1.5 py-0.5 rounded-full bg-[#181126] border border-[#FACC15] text-[9px] text-[#34D399] font-mono-tabular font-extrabold whitespace-nowrap shadow-[0_2px_0_#181425]">
               {chosenSkillState.statusText}
             </span>
+            <span ref={dashGhostRef} className="hidden" aria-hidden="true" />
+            <span ref={dashBarRef} className="hidden" aria-hidden="true" />
           </button>
         </div>
       </div>

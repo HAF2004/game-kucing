@@ -163,7 +163,7 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
     >
       {/* Top Perimeter Bar: 3-Column Grid guarantees zero overlap and zero right-edge clipping */}
       <div className="grid grid-cols-3 items-start w-full gap-1.5 sm:gap-2 md:gap-4">
-        {/* Column 1 (Top-Left): Vitality Sockets + Passive Skills Status Strip + Single Chosen Active Skill */}
+        {/* Column 1 (Top-Left): Vitality Sockets + Passive Skills Status Strip */}
         <div className="justify-self-start flex flex-col gap-1.5 min-w-0">
           <div
             className="inline-flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-1.5 bg-[#181425]/85 border-2 border-[#362452] rounded-xl px-2 py-1 sm:px-2.5 sm:py-1.5 shadow-[0_3px_0_#181425] w-fit"
@@ -250,8 +250,8 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
             })}
           </div>
 
-          {/* Desktop single selected power control (locked at game start). */}
-          <div className="hidden md:flex items-center gap-2 pointer-events-auto">
+          {/* Desktop single selected power control, centered beneath the score. */}
+          <div className="hidden md:flex fixed left-1/2 top-[8rem] -translate-x-1/2 z-20 items-center gap-2 pointer-events-auto">
             <button
               type="button"
               tabIndex={-1}
@@ -393,7 +393,7 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
           </span>
         </div>
 
-        <div className="pointer-events-none flex items-center justify-end gap-2 w-full">
+        <div className="pointer-events-none flex items-center justify-center gap-2 w-full">
           <div className="text-right max-w-[10rem]">
             <div className="font-display text-xs font-extrabold text-[#FFF8E7] truncate">
               {isPowerUnlocked ? equippedPower.shortName.toUpperCase() : 'POWER TERKUNCI'}

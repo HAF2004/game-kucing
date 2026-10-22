@@ -7,6 +7,7 @@ import {
   PowerAbilitySpec,
 } from '../game/achievementDefinitions';
 import { RunPowerMap } from '../game/types';
+import { PowerIcon } from './PowerIcon';
 
 export interface HudSnapshot {
   score: number;
@@ -257,22 +258,7 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
             >
               <div className="flex items-center justify-between gap-2 w-full">
                 <div className="flex items-center gap-1.5 min-w-0">
-                  {equippedPower.iconAsset ? (
-                    <img
-                      src={equippedPower.iconAsset}
-                      alt={equippedPower.shortName}
-                      className="w-5 h-5 rounded-full border border-[#FACC15] object-cover shrink-0"
-                    />
-                  ) : (
-                    <span
-                      className="w-3 h-3 rounded-full border border-[#181425] shrink-0"
-                      style={{
-                        backgroundColor: chosenSkillState.unlocked
-                          ? equippedPower.primaryColor
-                          : '#475569',
-                      }}
-                    />
-                  )}
+                  <PowerIcon power={equippedPower} size="sm" />
                   <span className="text-[11px] font-extrabold text-[#FFF8E7] truncate">
                     {isPowerUnlocked ? equippedPower.shortName : 'Tanpa Skill'}
                   </span>
@@ -427,22 +413,7 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
           }`}
         >
           <div className="flex items-center gap-2 min-w-0">
-            {equippedPower.iconAsset ? (
-              <img
-                src={equippedPower.iconAsset}
-                alt={equippedPower.shortName}
-                className="w-6 h-6 rounded-full border border-[#FACC15] object-cover shrink-0"
-              />
-            ) : (
-              <span
-                className="w-3.5 h-3.5 rounded-full border border-[#181425] shrink-0"
-                style={{
-                  backgroundColor: chosenSkillState.unlocked
-                    ? equippedPower.primaryColor
-                    : '#475569',
-                }}
-              />
-            )}
+            <PowerIcon power={equippedPower} size="md" />
             <div className="text-left min-w-0">
               <div className="font-display text-xs font-extrabold truncate">
                 SKILL AKTIF: {isPowerUnlocked ? equippedPower.shortName.toUpperCase() : 'TERKUNCI'}

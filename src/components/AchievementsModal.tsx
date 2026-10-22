@@ -5,6 +5,7 @@ import {
   PowerAbilityId,
   PowerAbilitySpec,
 } from '../game/achievementDefinitions';
+import { PowerIcon } from './PowerIcon';
 
 interface AchievementsModalProps {
   achievements: AchievementState[];
@@ -194,39 +195,27 @@ export const AchievementsModal: React.FC<AchievementsModalProps> = ({
                         {ach.unlocked ? 'TERBUKA' : 'TERKUNCI'}
                       </span>
                       <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-[#181425] border border-[#362452] text-[#38BDF8]">
-                        {reward?.category === 'passive' ? 'SKILL PASIF' : 'SKILL AKTIF'}
+                          {reward?.category === 'passive' ? 'PASIF' : 'AKTIF'}
                       </span>
                     </div>
                     <p className="text-xs text-[#E2E8F0] mt-1 leading-relaxed">
-                      {reward ? reward.description : ach.description}
+                      {reward ? `Power unlock: ${reward.shortName}` : ach.description}
                     </p>
                   </div>
 
                   {/* Power Ability Reward & Cooldown Badge */}
                   <div className="flex items-center gap-2 bg-[#231836] border border-[#362452] rounded-xl px-3 py-1.5 shrink-0 self-start sm:self-center">
-                    {reward?.iconAsset ? (
-                      <img
-                        src={reward.iconAsset}
-                        alt={reward.shortName}
-                        className="w-6 h-6 rounded-full border border-[#FACC15] object-cover shrink-0"
-                      />
-                    ) : (
-                      <span
-                        className="w-3.5 h-3.5 rounded-full border border-[#181425] shrink-0"
-                        style={{ backgroundColor: reward?.primaryColor || '#F97316' }}
-                        aria-hidden="true"
-                      />
-                    )}
+                    {reward ? <PowerIcon power={reward} size="sm" /> : null}
                     <div className="text-[11px] leading-tight">
                       <div className="font-bold text-[#FFF8E7]">{reward?.shortName}</div>
                       <div className="text-[10px] font-mono-tabular font-semibold text-[#FDE68A]">
                         {reward?.category === 'passive'
                           ? reward.maxChargesPerRun
-                            ? `${reward.maxChargesPerRun}x Otomatis / Run`
-                            : 'Radius 125 Unit'
+                            ? `${reward.maxChargesPerRun}x / run`
+                            : 'Radius 125'
                           : reward?.maxChargesPerRun
-                          ? `Durasi ${reward.durationSec}s · 1x/Run`
-                          : `Durasi ${reward?.durationSec}s · CD ${reward?.cooldownSec}s`}
+                          ? `${reward.durationSec}s · 1x/run`
+                          : `${reward?.durationSec}s · CD ${reward?.cooldownSec}s`}
                       </div>
                     </div>
                   </div>

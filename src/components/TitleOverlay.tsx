@@ -5,6 +5,7 @@ import {
   PowerAbilityId,
   PowerAbilitySpec,
 } from '../game/achievementDefinitions';
+import { PowerIcon } from './PowerIcon';
 
 interface TitleOverlayProps {
   selectedSkin: CatSkinId;
@@ -322,13 +323,7 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({
                     }`}
                   >
                     <div className="flex items-center justify-center gap-1 mb-0.5">
-                      {reward.iconAsset ? (
-                        <img
-                          src={reward.iconAsset}
-                          alt={reward.shortName}
-                          className="w-4 h-4 rounded-full border border-[#FACC15] object-cover shrink-0"
-                        />
-                      ) : null}
+                      <PowerIcon power={reward} size="sm" />
                       <span
                         className="px-1.5 py-0.5 rounded-md border border-[#181425] text-[9px] font-extrabold text-[#181425] leading-none"
                         style={{ backgroundColor: reward.primaryColor }}

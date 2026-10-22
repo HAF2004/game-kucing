@@ -1,8 +1,6 @@
 import React from 'react';
 import {
   CorePowerId,
-  PASSIVE_POWER_IDS,
-  POWER_ABILITIES,
   PowerAbilityId,
   PowerAbilitySpec,
 } from '../game/achievementDefinitions';
@@ -125,35 +123,6 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
     };
   };
 
-  const formatPassiveSkillBadge = (id: CorePowerId): {
-    unlocked: boolean;
-    available: boolean;
-    label: string;
-  } => {
-    const p = hud.powers?.[id];
-    const spec = POWER_ABILITIES[id];
-    if (!p || !p.unlocked) {
-      return {
-        unlocked: false,
-        available: false,
-        label: `${spec.shortName}: ${spec.unlockScore}`,
-      };
-    }
-    if (id === 'magnet') {
-      return {
-        unlocked: true,
-        available: true,
-        label: 'Magnet: AKTIF',
-      };
-    }
-    const hasCharge = p.chargesRemaining > 0;
-    return {
-      unlocked: true,
-      available: hasCharge,
-      label: `${spec.shortName}: ${hasCharge ? 'SIAP (1/1)' : 'TERPAKAI'}`,
-    };
-  };
-
   const chosenSkillState = formatChosenActiveSkillState();
 
   return (
@@ -163,7 +132,7 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
     >
       {/* Top Perimeter Bar: 3-Column Grid guarantees zero overlap and zero right-edge clipping */}
       <div className="grid grid-cols-3 items-start w-full gap-1.5 sm:gap-2 md:gap-4">
-        {/* Column 1 (Top-Left): Vitality Sockets + Passive Skills Status Strip */}
+        {/* Column 1 (Top-Left): Vitality Sockets */}
         <div className="justify-self-start flex flex-col gap-1.5 min-w-0">
           <div
             className="inline-flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-1.5 bg-[#181425]/85 border-2 border-[#362452] rounded-xl px-2 py-1 sm:px-2.5 sm:py-1.5 shadow-[0_3px_0_#181425] w-fit"
@@ -216,42 +185,16 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
             </div>
           </div>
 
-          {/* Passive Skills Status Strip (Shield 100, Magnet 300, Second Chance 400) — Status-only, no manual button */}
-          <div
-            data-testid="hud-passive-skills"
-            className="hidden sm:flex flex-wrap items-center gap-1 max-w-[260px] sm:max-w-none"
-            aria-label="Status Skill Pasif"
-          >
-            {PASSIVE_POWER_IDS.map((pid) => {
-              const badge = formatPassiveSkillBadge(pid);
-              const spec = POWER_ABILITIES[pid];
-              return (
-                <div
-                  key={pid}
-                  data-testid={`passive-badge-${pid}`}
-                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg border text-[9px] sm:text-[10px] font-extrabold font-mono-tabular whitespace-nowrap ${
-                    !badge.unlocked
-                      ? 'bg-[#181425]/70 border-[#362452] text-[#94A3B8] opacity-75'
-                      : badge.available
-                      ? 'bg-[#181425]/95 border-[#FACC15] text-[#FFF8E7]'
-                      : 'bg-[#181425]/85 border-[#475569] text-[#94A3B8]'
-                  }`}
-                >
-                  <span
-                    className="w-2 h-2 rounded-full shrink-0"
-                    style={{
-                      backgroundColor:
-                        badge.unlocked && badge.available ? spec.primaryColor : '#475569',
-                    }}
-                  />
-                  <span>{badge.label}</span>
-                </div>
-              );
-            })}
-          </div>
-
           {/* Desktop single selected power control, centered beneath the score. */}
-          <div className="hidden md:flex fixed left-1/2 top-[8rem] -translate-x-1/2 z-20 items-center gap-2 pointer-events-auto">
+          <div className="hud-desktop-power fixed left-1/2 top-[7.5rem] -translate-x-1/2 z-20 flex-col items-center gap-1.5 pointer-events-auto">
+            <div className="text-center leading-tight">
+              <div className="text-[11px] font-extrabold text-[#FFF8E7]">
+                {isPowerUnlocked ? equippedPower.shortName : 'Tanpa Power'}
+              </div>
+              {isManualPower && (
+                <div className="text-[9px] font-extrabold text-[#FDE68A]">[E] AKTIFKAN</div>
+              )}
+            </div>
             <button
               type="button"
               tabIndex={-1}
@@ -263,7 +206,7 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
                   onTriggerDash(equippedPower.reward_id);
                 }
               }}
-              aria-label={`Aktifkan Skill Pilihan ${equippedPower.shortName} [Shift / E]`}
+              aria-label={`Aktifkan Skill Pilihan ${equippedPower.shortName} [E]`}
               className={`relative w-[4.5rem] h-[4.5rem] shrink-0 rounded-full border-[3px] border-[#181425] shadow-[0_4px_0_#181425] flex items-center justify-center transition-transform cursor-pointer disabled:cursor-default ${
                 chosenSkillState.active
                   ? 'bg-[#362452] ring-2 ring-[#FACC15]'
@@ -282,20 +225,12 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
               <span className="relative rounded-full bg-[#181425] p-1">
                 <PowerIcon power={equippedPower} size="lg" />
               </span>
-              <span className="absolute -right-2 -bottom-1 px-1.5 py-0.5 rounded-full bg-[#181126] border border-[#FACC15] text-[9px] font-mono-tabular font-extrabold text-[#34D399] whitespace-nowrap">
+              <span className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded-full bg-[#181126]/95 border border-[#FACC15] text-[9px] font-mono-tabular font-extrabold text-[#34D399] whitespace-nowrap shadow-[0_2px_0_#181425]">
                 {chosenSkillState.statusText}
               </span>
               <span ref={dashGhostRef} className="hidden" aria-hidden="true" />
               <span ref={dashBarRef} className="hidden" aria-hidden="true" />
             </button>
-            <div className="min-w-0 max-w-[10rem]">
-              <div className="text-[11px] font-extrabold text-[#FFF8E7] truncate">
-                {isPowerUnlocked ? equippedPower.shortName : 'Tanpa Power'}
-              </div>
-              <div className="text-[9px] font-extrabold text-[#FDE68A]">
-                {isManualPower ? '[SHIFT / E] AKTIFKAN' : 'PASIF · TERPILIH'}
-              </div>
-            </div>
           </div>
         </div>
 
@@ -379,10 +314,10 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
         </div>
       </div>
 
-      {/* MOBILE DEDICATED TOUCH ACTION DECK (Single Chosen Skill Only — No mid-run switching) */}
+      {/* MOBILE DEDICATED TOUCH ACTION DECK (touch only; no keyboard hint) */}
       <div
         data-testid="mobile-action-deck"
-        className="flex md:hidden flex-col gap-1.5 w-full pointer-events-none pb-0.5"
+        className="hud-mobile-power flex-col gap-1.5 w-full pointer-events-none pb-0.5"
       >
         <div className="flex items-center justify-between gap-2 w-full">
           <div className="px-2.5 py-1.5 rounded-xl bg-[#181425]/90 border border-[#362452] text-[10px] font-bold text-[#FDE68A] leading-none whitespace-nowrap">
@@ -393,13 +328,10 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
           </span>
         </div>
 
-        <div className="pointer-events-none flex items-center justify-center gap-2 w-full">
-          <div className="text-right max-w-[10rem]">
+        <div className="pointer-events-none flex flex-col items-center justify-center gap-1 w-full">
+          <div className="text-center max-w-[10rem]">
             <div className="font-display text-xs font-extrabold text-[#FFF8E7] truncate">
               {isPowerUnlocked ? equippedPower.shortName.toUpperCase() : 'POWER TERKUNCI'}
-            </div>
-            <div className="text-[10px] font-semibold text-[#FDE68A] truncate">
-              {isManualPower ? '[SHIFT / E] AKTIFKAN' : 'PASIF · TERPILIH'}
             </div>
           </div>
           <button
@@ -439,7 +371,7 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
             <span className="relative rounded-full bg-[#181425] p-1">
               <PowerIcon power={equippedPower} size="md" />
             </span>
-            <span className="absolute -left-2 -bottom-1 px-1.5 py-0.5 rounded-full bg-[#181126] border border-[#FACC15] text-[9px] text-[#34D399] font-mono-tabular font-extrabold whitespace-nowrap">
+            <span className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded-full bg-[#181126]/95 border border-[#FACC15] text-[9px] text-[#34D399] font-mono-tabular font-extrabold whitespace-nowrap shadow-[0_2px_0_#181425]">
               {chosenSkillState.statusText}
             </span>
           </button>
@@ -447,12 +379,12 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
       </div>
 
       {/* DESKTOP BOTTOM CONTROL REMINDER (Hidden on mobile) */}
-      <div className="hidden md:flex justify-between items-end text-[11px] font-bold text-[#FDE68A] hud-stroke-sm">
+      <div className="hud-desktop-power hidden justify-between items-end text-[11px] font-bold text-[#FDE68A] hud-stroke-sm">
         <span className="px-2.5 py-1 rounded-lg bg-[#181425]/80 border border-[#362452]">
           REKOR {Math.round(hud.bestScore)} · SKILL {equippedPower.shortName.toUpperCase()}
         </span>
         <span className="px-2.5 py-1 rounded-lg bg-[#181425]/80 border border-[#362452]">
-          [SPASI / KLIK] TERBANG · [SHIFT / E] SKILL · [P] JEDA
+          [SPASI / KLIK] TERBANG · [E] SKILL · [P] JEDA
         </span>
       </div>
     </div>

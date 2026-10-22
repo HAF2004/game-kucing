@@ -43,3 +43,24 @@
      1.5px  1.5px 0 #181425,
      0px    2px   0 #181425;
 }
+
+/* Keep keyboard controls on pointer devices and touch controls on mobile.
+   The pointer query also handles a narrow desktop window without showing
+   the touch-only power deck. */
+.hud-desktop-power {
+  display: none;
+}
+
+.hud-mobile-power {
+  display: flex;
+}
+
+@media (min-width: 48rem), (hover: hover) and (pointer: fine) {
+  .hud-desktop-power {
+    display: flex;
+  }
+
+  .hud-mobile-power {
+    display: none;
+  }
+}

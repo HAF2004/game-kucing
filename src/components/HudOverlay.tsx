@@ -114,7 +114,7 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
         ready: false,
         active: false,
         unlocked: true,
-        statusText: `CD ${Math.ceil(p.remainingCooldown)}s`,
+        statusText: `ISI ULANG ${Math.ceil(p.remainingCooldown)}s`,
       };
     }
     return {

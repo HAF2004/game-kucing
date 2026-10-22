@@ -40,6 +40,7 @@ export const MAGNET_PULL_SPEED = 450;
 export const SECOND_CHANCE_INVULN_SEC = 1.0;
 export const SHIELD_CLEARANCE_INVULN_SEC = 0.85;
 export const WAPRES_DURATION_SEC = 4.0;
+export const WAPRES_COOLDOWN_SEC = 20.0;
 
 // Balanced Score Economy (prevents runaway 100-score inflation)
 export const SCORE_PER_PIPE = 1;

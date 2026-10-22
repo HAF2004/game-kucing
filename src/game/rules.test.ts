@@ -19,6 +19,7 @@ import {
   TIME_FREEZE_DURATION_SEC,
   TIME_FREEZE_SPEED_MULTIPLIER,
   triggerPowerAbility,
+  WAPRES_COOLDOWN_SEC,
   WAPRES_DURATION_SEC,
 } from './rules';
 import { DynamicWeatherSystem, pickNextWeather, WEATHER_TYPES } from './weather';
@@ -174,6 +175,21 @@ test('3. Dash duration (0.5s) and cooldown (8.0s) behavior and bounds safety', (
   }
   assert.equal(sim.powers.dash.remainingCooldown, 0);
   assert.equal(triggerPowerAbility(sim, createEmptyEvents(), 'dash'), true);
+});
+
+test('Selected active power does not activate without an explicit input edge', () => {
+  const sim = createInitialWorld(1280, 720, 'pirang', 0, 'dash', ['dash']);
+  startNewRun(sim, 'pirang', 'dash', ['dash']);
+
+  stepWorldSimulation(sim, 0.5, {
+    flapJustPressed: false,
+    flapHeld: false,
+    flapJustReleased: false,
+    dashJustPressed: false,
+  });
+
+  assert.equal(sim.powers.dash.isActive, false);
+  assert.equal(sim.powers.dash.activationCount, 0);
 });
 
 test('4. Shield blocks one fatal collision and is then consumed', () => {
@@ -369,7 +385,7 @@ test('7. Second Chance revives the player once, repositions safely, and applies 
   assert.equal(res2, 'game_over');
 });
 
-test('8 & 9. Wapres activates once per run, grants 4s of immunity, and prevents Shield and Second Chance from being consumed', () => {
+test('8 & 9. Wapres grants 4s of immunity and recharges after its long cooldown', () => {
   const sim = createInitialWorld(1280, 720, 'pirang', 0, 'wapres', [
     'shield',
     'second_chance',
@@ -390,7 +406,7 @@ test('8 & 9. Wapres activates once per run, grants 4s of immunity, and prevents 
   assert.equal(ev.wapresActivated, true);
   assert.equal(sim.powers.wapres.isActive, true);
   assert.equal(sim.powers.wapres.remainingDuration, WAPRES_DURATION_SEC);
-  assert.equal(sim.powers.wapres.chargesRemaining, 0);
+  assert.equal(sim.powers.wapres.remainingCooldown, WAPRES_COOLDOWN_SEC);
 
   // While Wapres is active, fatal collisions are blocked by Wapres and NEVER consume Shield or Second Chance
   const colRes = resolvePlayerCollision(
@@ -405,7 +421,7 @@ test('8 & 9. Wapres activates once per run, grants 4s of immunity, and prevents 
   assert.equal(sim.powers.second_chance.chargesRemaining, 1);
   assert.equal(sim.cat.hp, 4);
 
-  // Advance 4.1s (82 steps of 0.05s) -> Wapres expires and cannot be activated a second time in the same run
+  // Advance 4.1s -> Wapres expires but remains on cooldown.
   for (let i = 0; i < 82; i++) {
     stepWorldSimulation(sim, 0.05, {
       flapJustPressed: false,
@@ -417,6 +433,22 @@ test('8 & 9. Wapres activates once per run, grants 4s of immunity, and prevents 
   assert.equal(sim.powers.wapres.isActive, false);
   assert.equal(sim.powers.wapres.remainingDuration, 0);
   assert.equal(triggerPowerAbility(sim, createEmptyEvents(), 'wapres'), false);
+
+  // Finish the cooldown, then Wapres can be activated again in the same run.
+  for (let i = 0; i < 320; i++) {
+    sim.cat.y = 250;
+    sim.cat.vy = 0;
+    sim.pipes = [];
+    sim.enemies = [];
+    stepWorldSimulation(sim, 0.05, {
+      flapJustPressed: false,
+      flapHeld: false,
+      flapJustReleased: false,
+      dashJustPressed: false,
+    });
+  }
+  assert.equal(sim.powers.wapres.remainingCooldown, 0);
+  assert.equal(triggerPowerAbility(sim, createEmptyEvents(), 'wapres'), true);
 });
 
 test('10 & 11. Only the selected passive power protects the run', () => {
@@ -501,7 +533,7 @@ test('12. Starting a new run resets all temporary states while preserving unlock
   // Spend the selected Wapres during Run 1. Other unlocked powers remain idle.
   triggerPowerAbility(sim, createEmptyEvents(), 'wapres');
 
-  assert.equal(sim.powers.wapres.chargesRemaining, 0);
+  assert.equal(sim.powers.wapres.remainingCooldown, WAPRES_COOLDOWN_SEC);
   assert.equal(sim.powers.shield.chargesRemaining, 1);
   assert.equal(sim.powers.second_chance.chargesRemaining, 1);
 
@@ -515,7 +547,7 @@ test('12. Starting a new run resets all temporary states while preserving unlock
   }
   assert.equal(sim.powers.shield.chargesRemaining, 1);
   assert.equal(sim.powers.second_chance.chargesRemaining, 1);
-  assert.equal(sim.powers.wapres.chargesRemaining, 1);
+  assert.equal(sim.powers.wapres.remainingCooldown, 0);
   assert.equal(sim.powers.magnet.isActive, false);
 });
 

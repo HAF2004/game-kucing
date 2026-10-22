@@ -205,11 +205,11 @@ export const POWER_ABILITIES: Record<PowerAbilityId, PowerAbilitySpec> = {
     unlockScore: 500,
     unlockMilestoneLabel: '500 Skor',
     description:
-      'Ultimate Aktif: Transformasi wujud Wapres selama 4 detik! Kebal penuh dari seluruh tabrakan fatal tanpa mengurangi Shield atau Second Chance (1x per run).',
+      'Ultimate Aktif: Transformasi wujud Wapres selama 4 detik! Kebal penuh dari seluruh tabrakan fatal. Bisa dipakai lagi setelah cooldown 20 detik.',
     energyCost: 0,
-    cooldownSec: 0,
+    cooldownSec: 20.0,
     durationSec: 4.0,
-    maxChargesPerRun: 1,
+    maxChargesPerRun: null,
     passiveRegenPerSec: 0,
     fishEnergyGain: 0,
     primaryColor: '#FACC15',
@@ -293,7 +293,7 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
   {
     achievement_id: 'score_500',
     name: 'Skor 500 · Mode Wapres Ultimate',
-    description: 'Capai 500 Skor untuk membuka Skill Ultimate: Wapres (transformasi Wapres & kebal penuh 4 dtk, 1x per run)!',
+    description: 'Capai 500 Skor untuk membuka Skill Ultimate: Wapres (transformasi & kebal penuh 4 dtk, CD 20 dtk).',
     category: 'gameplay',
     event_type: 'score_earned',
     target_value: 500,

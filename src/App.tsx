@@ -761,9 +761,9 @@ export default function App() {
         const cooldownCeil = Math.ceil(Math.max(0, sim.cat.dashCooldown));
         const powerSummarySig = CORE_POWER_IDS.map((id) => {
           const p = sim.powers[id];
-          return `${id}:${p.unlocked ? 1 : 0}:${p.isActive ? 1 : 0}:${Math.ceil(
-            p.remainingDuration * 2
-          )}:${Math.ceil(p.remainingCooldown)}:${p.chargesRemaining}`;
+          return `${id}:${p.unlocked ? 1 : 0}:${p.isActive ? 1 : 0}:${Math.round(
+            p.remainingDuration * 10
+          )}:${Math.round(p.remainingCooldown * 10)}:${p.chargesRemaining}`;
         }).join('|');
 
         if (

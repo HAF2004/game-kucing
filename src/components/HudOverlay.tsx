@@ -281,12 +281,7 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
           </span>
         </div>
 
-        <div className="pointer-events-none flex flex-col items-center justify-center gap-1 w-full">
-          <div className="text-center max-w-[10rem]">
-            <div className="font-display text-xs font-extrabold text-[#FFF8E7] truncate">
-              {isPowerUnlocked ? equippedPower.shortName.toUpperCase() : 'POWER TERKUNCI'}
-            </div>
-          </div>
+        <div className="pointer-events-none flex items-center justify-center w-full">
           <button
             type="button"
             data-testid="mobile-power-btn"
@@ -324,7 +319,7 @@ export const HudOverlay: React.FC<HudOverlayProps> = ({
             <span className="relative rounded-full bg-[#181425] p-1">
               <PowerIcon power={equippedPower} size="md" />
             </span>
-            <span className="absolute -right-2 -bottom-1 px-1.5 py-0.5 rounded-full bg-[#181126] border border-[#FACC15] text-[9px] text-[#34D399] font-mono-tabular font-extrabold whitespace-nowrap shadow-[0_2px_0_#181425]">
+            <span className="absolute left-1/2 -bottom-1 -translate-x-1/2 px-1.5 py-0.5 rounded-full bg-[#181126] border border-[#FACC15] text-[9px] text-[#34D399] font-mono-tabular font-extrabold whitespace-nowrap shadow-[0_2px_0_#181425]">
               {chosenSkillState.statusText}
             </span>
             <span ref={dashGhostRef} className="hidden" aria-hidden="true" />

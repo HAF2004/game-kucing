@@ -127,6 +127,7 @@ export default function App() {
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
   const [activeSubModal, setActiveSubModal] = useState<'leaderboard' | 'achievements' | null>(null);
+  const playerDataRequestVersionRef = useRef(0);
 
   const [hud, setHud] = useState<HudSnapshot>({
     score: 0,
@@ -219,10 +220,12 @@ export default function App() {
   const refreshLeaderboardAndProfile = useCallback(async () => {
     const client = playerClientRef.current;
     if (!client) return;
+    const requestVersion = ++playerDataRequestVersionRef.current;
     setLeaderboardLoading(true);
     setLeaderboardError(null);
     try {
       const profile = await client.initSession();
+      if (requestVersion !== playerDataRequestVersionRef.current) return;
       setPlayerProfile(profile);
       if (profile.best_score > readStoredBestScore()) {
         saveBestScore(profile.best_score);
@@ -235,13 +238,15 @@ export default function App() {
         }));
       }
       const board = await client.fetchLeaderboard(20, 0);
-      setLeaderboardData(board);
+      if (requestVersion === playerDataRequestVersionRef.current) setLeaderboardData(board);
     } catch (err) {
-      setLeaderboardError(
-        err instanceof Error ? err.message : 'Gagal terhubung ke server papan peringkat.'
-      );
+      if (requestVersion === playerDataRequestVersionRef.current) {
+        setLeaderboardError(
+          err instanceof Error ? err.message : 'Gagal terhubung ke server papan peringkat.'
+        );
+      }
     } finally {
-      setLeaderboardLoading(false);
+      if (requestVersion === playerDataRequestVersionRef.current) setLeaderboardLoading(false);
     }
   }, []);
 
@@ -252,10 +257,23 @@ export default function App() {
   const handleUpdateUsername = useCallback(async (newUsername: string) => {
     const client = playerClientRef.current;
     if (!client) return;
-    const updatedProfile = await client.updateUsername(newUsername);
-    setPlayerProfile(updatedProfile);
-    const board = await client.fetchLeaderboard(20, 0);
-    setLeaderboardData(board);
+    const requestVersion = ++playerDataRequestVersionRef.current;
+    setLeaderboardLoading(true);
+    setLeaderboardError(null);
+    try {
+      const updatedProfile = await client.updateUsername(newUsername);
+      if (requestVersion !== playerDataRequestVersionRef.current) return;
+      setPlayerProfile(updatedProfile);
+      const board = await client.fetchLeaderboard(20, 0);
+      if (requestVersion === playerDataRequestVersionRef.current) setLeaderboardData(board);
+    } catch (err) {
+      if (requestVersion === playerDataRequestVersionRef.current) {
+        setLeaderboardError(err instanceof Error ? err.message : 'Gagal memperbarui username.');
+      }
+      throw err;
+    } finally {
+      if (requestVersion === playerDataRequestVersionRef.current) setLeaderboardLoading(false);
+    }
   }, []);
 
   const handleEquipReward = useCallback(
@@ -300,6 +318,8 @@ export default function App() {
       if (!client) return;
       const durationMs = Math.max(500, Date.now() - runStartTimeMsRef.current);
       const idempotencyKey = currentRunIdempotencyKeyRef.current;
+      const requestVersion = ++playerDataRequestVersionRef.current;
+      setLeaderboardLoading(true);
       try {
         const res = await client.submitRunScore({
           idempotencyKey,
@@ -308,11 +328,14 @@ export default function App() {
           pipesCleared: Math.round(pipesCleared),
           durationMs,
         });
+        if (requestVersion !== playerDataRequestVersionRef.current) return;
         setPlayerProfile(res.profile);
         const board = await client.fetchLeaderboard(20, 0);
-        setLeaderboardData(board);
+        if (requestVersion === playerDataRequestVersionRef.current) setLeaderboardData(board);
       } catch {
         // Non-fatal if offline or rejected
+      } finally {
+        if (requestVersion === playerDataRequestVersionRef.current) setLeaderboardLoading(false);
       }
     },
     []

@@ -30,62 +30,46 @@ export class LeaderboardService {
     this.security = security;
   }
 
-  /**
-   * Returns a paginated global leaderboard sorted deterministically, plus the
-   * requesting player's exact rank entry if `currentPlayerId` is provided.
-   */
-  public getLeaderboard(params: {
+  public async getLeaderboard(params: {
     limit?: number;
     offset?: number;
     currentPlayerId?: string;
-  }): LeaderboardResponse {
+  }): Promise<LeaderboardResponse> {
     const limit = Math.max(1, Math.min(100, Number(params.limit) || 20));
     const offset = Math.max(0, Number(params.offset) || 0);
-
-    const entries = this.repo.getLeaderboardEntries(limit, offset);
-    const totalPlayers = this.repo.getTotalPlayerCount();
+    const entries = await this.repo.getLeaderboardEntries(limit, offset);
+    const totalPlayers = await this.repo.getTotalPlayerCount();
     const currentPlayer = params.currentPlayerId
-      ? this.repo.getPlayerRank(params.currentPlayerId)
+      ? await this.repo.getPlayerRank(params.currentPlayerId)
       : undefined;
 
-    return {
-      entries,
-      totalPlayers,
-      limit,
-      offset,
-      currentPlayer,
-    };
+    return { entries, totalPlayers, limit, offset, currentPlayer };
   }
 
   /**
-   * Validates and records a run score submission for an authenticated player.
-   * Enforces:
-   * - Token authentication matching `playerId`
-   * - Rate limiting per player
-   * - Idempotency key deduplication
-   * - Server-side plausibility checks against game physics & scoring rules
+   * Validates and atomically records one score for an authenticated player.
+   * The write transaction serializes the idempotency check with the insert and
+   * statistic update, so a repeated key cannot increment totals twice.
    */
-  public submitScore(params: {
+  public async submitScore(params: {
     playerId: string;
     authToken: string;
     payload: unknown;
     ipAddress?: string;
-  }): SubmitScoreResult {
+  }): Promise<SubmitScoreResult> {
     const ipHash = params.ipAddress ? this.security.hashSecret(params.ipAddress) : null;
-
     if (typeof params.playerId !== 'string' || !params.playerId.trim()) {
       throw new ServiceError('Player ID tidak valid.', 400, 'INVALID_PLAYER_ID');
     }
 
     const playerId = params.playerId.trim();
-
-    const rate = this.security.checkRateLimit('score_submit', playerId, {
-      windowMs: 60_000,
-      maxRequests: 25,
-      baseBackoffMs: 2_000,
-    });
+    const rate = await this.repo.checkRateLimit(
+      'score_submit',
+      this.security.hashSecret(playerId),
+      { windowMs: 60_000, maxRequests: 25, baseBackoffMs: 2_000 }
+    );
     if (!rate.allowed) {
-      this.repo.logSecurityEvent({
+      await this.repo.logSecurityEvent({
         event_type: 'RATE_LIMIT_SCORE_SUBMIT',
         player_id: playerId,
         ip_hash: ipHash,
@@ -100,11 +84,11 @@ export class LeaderboardService {
 
     const validation = this.security.validateRunSubmission(params.payload);
     if (!validation.valid || !validation.cleaned) {
-      this.repo.logSecurityEvent({
+      await this.repo.logSecurityEvent({
         event_type: 'REJECTED_SCORE_SUBMISSION',
         player_id: playerId,
         ip_hash: ipHash,
-        reason: `${validation.code}: ${validation.reason}`,
+        reason: (validation.code ?? 'INVALID') + ': ' + (validation.reason ?? 'Invalid payload'),
       });
       throw new ServiceError(
         validation.reason ?? 'Data skor ditolak oleh sistem anti-cheat.',
@@ -114,20 +98,23 @@ export class LeaderboardService {
     }
 
     const cleaned = validation.cleaned;
-
-    return this.repo.runInTransaction(() => {
-      const player = this.repo.findByPlayerId(playerId);
+    return this.repo.runInTransaction(async (scope) => {
+      const tx = scope.sql;
+      const player = await this.repo.findByPlayerId(playerId, tx);
       if (!player) {
         throw new ServiceError('Profil pemain tidak ditemukan.', 404, 'PLAYER_NOT_FOUND');
       }
 
       if (!this.security.verifyAuthToken(params.authToken, player.auth_token_hash)) {
-        this.repo.logSecurityEvent({
-          event_type: 'UNAUTHORIZED_SCORE_SUBMISSION',
-          player_id: playerId,
-          ip_hash: ipHash,
-          reason: 'Invalid or missing auth token on score submission.',
-        });
+        await this.repo.logSecurityEvent(
+          {
+            event_type: 'UNAUTHORIZED_SCORE_SUBMISSION',
+            player_id: playerId,
+            ip_hash: ipHash,
+            reason: 'Invalid or missing auth token on score submission.',
+          },
+          scope
+        );
         throw new ServiceError(
           'Token autentikasi tidak cocok dengan pemilik profil.',
           403,
@@ -135,25 +122,27 @@ export class LeaderboardService {
         );
       }
 
-      // Idempotency check
-      const existingSubmission = this.repo.findSubmissionByKey(cleaned.idempotencyKey);
+      const existingSubmission = await this.repo.findSubmissionByKey(
+        cleaned.idempotencyKey,
+        tx
+      );
       if (existingSubmission) {
         if (existingSubmission.player_id !== playerId) {
-          this.repo.logSecurityEvent({
-            event_type: 'CROSS_PLAYER_IDEMPOTENCY_COLLISION',
-            player_id: playerId,
-            ip_hash: ipHash,
-            reason: `Idempotency key ${cleaned.idempotencyKey} already belongs to another player.`,
-          });
-          throw new ServiceError(
-            'Idempotency key sudah digunakan.',
-            409,
-            'IDEMPOTENCY_CONFLICT'
+          await this.repo.logSecurityEvent(
+            {
+              event_type: 'CROSS_PLAYER_IDEMPOTENCY_COLLISION',
+              player_id: playerId,
+              ip_hash: ipHash,
+              reason: 'Idempotency key already belongs to another player.',
+            },
+            scope
           );
+          throw new ServiceError('Idempotency key sudah digunakan.', 409, 'IDEMPOTENCY_CONFLICT');
         }
 
-        const currentProfile = this.repo.toPublicProfile(player);
-        const currentRank = this.repo.getPlayerRank(playerId)!;
+        const currentProfile = await this.repo.toPublicProfile(player, tx);
+        const currentRank = await this.repo.getPlayerRank(playerId, tx);
+        if (!currentRank) throw new Error('Player rank missing during score replay.');
         return {
           profile: currentProfile,
           leaderboardEntry: currentRank,
@@ -163,18 +152,21 @@ export class LeaderboardService {
       }
 
       const previousBest = player.best_score;
-      const updatedRecord = this.repo.recordRunAndAccumulateStats({
-        idempotency_key: cleaned.idempotencyKey,
-        player_id: playerId,
-        run_score: cleaned.score,
-        fish_collected: cleaned.fishCollected,
-        pipes_cleared: cleaned.pipesCleared,
-        duration_ms: cleaned.durationMs,
-        nowIso: new Date().toISOString(),
-      });
-
-      const updatedProfile = this.repo.toPublicProfile(updatedRecord);
-      const rankEntry = this.repo.getPlayerRank(playerId)!;
+      const updatedRecord = await this.repo.recordRunAndAccumulateStats(
+        {
+          idempotency_key: cleaned.idempotencyKey,
+          player_id: playerId,
+          run_score: cleaned.score,
+          fish_collected: cleaned.fishCollected,
+          pipes_cleared: cleaned.pipesCleared,
+          duration_ms: cleaned.durationMs,
+          nowIso: new Date().toISOString(),
+        },
+        tx
+      );
+      const updatedProfile = await this.repo.toPublicProfile(updatedRecord, tx);
+      const rankEntry = await this.repo.getPlayerRank(playerId, tx);
+      if (!rankEntry) throw new Error('Player rank missing after score submission.');
 
       return {
         profile: updatedProfile,

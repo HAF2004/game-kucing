@@ -20,13 +20,6 @@ export interface RateLimitConfig {
   baseBackoffMs: number;
 }
 
-interface RateBucket {
-  count: number;
-  windowStart: number;
-  violations: number;
-  blockedUntil: number;
-}
-
 const PROHIBITED_USERNAMES = new Set([
   'admin',
   'administrator',
@@ -47,8 +40,6 @@ const PROHIBITED_USERNAMES = new Set([
 const SUSPICIOUS_INPUT_PATTERN = /(--|;|\/\*|\*\/|<script|union\s+select|drop\s+table|or\s+1\s*=\s*1|xp_)/i;
 
 export class SecurityService {
-  private buckets: Map<string, RateBucket> = new Map();
-
   /**
    * Generates a cryptographically strong immutable player ID.
    */
@@ -64,7 +55,7 @@ export class SecurityService {
   }
 
   /**
-   * Hashes an auth token or IP using SHA-256 so plaintext tokens are never stored in SQLite.
+   * Hashes an auth token or IP using SHA-256 so plaintext secrets are never stored in the database.
    */
   public hashSecret(secret: string): string {
     return crypto.createHash('sha256').update(secret).digest('hex');
@@ -306,55 +297,4 @@ export class SecurityService {
     };
   }
 
-  /**
-   * Enforces rate limiting and progressive backoff per action + subject key.
-   */
-  public checkRateLimit(
-    actionKey: string,
-    subjectId: string,
-    config: RateLimitConfig,
-    nowMs = Date.now()
-  ): { allowed: boolean; retryAfterMs: number } {
-    const key = `${actionKey}:${subjectId}`;
-    let bucket = this.buckets.get(key);
-
-    if (!bucket) {
-      bucket = {
-        count: 0,
-        windowStart: nowMs,
-        violations: 0,
-        blockedUntil: 0,
-      };
-      this.buckets.set(key, bucket);
-    }
-
-    if (bucket.blockedUntil > nowMs) {
-      return {
-        allowed: false,
-        retryAfterMs: bucket.blockedUntil - nowMs,
-      };
-    }
-
-    if (nowMs - bucket.windowStart >= config.windowMs) {
-      bucket.count = 0;
-      bucket.windowStart = nowMs;
-    }
-
-    bucket.count += 1;
-    if (bucket.count > config.maxRequests) {
-      bucket.violations += 1;
-      const backoff = Math.min(60_000, config.baseBackoffMs * Math.pow(2, bucket.violations - 1));
-      bucket.blockedUntil = nowMs + backoff;
-      return {
-        allowed: false,
-        retryAfterMs: backoff,
-      };
-    }
-
-    return { allowed: true, retryAfterMs: 0 };
-  }
-
-  public clearRateLimits(): void {
-    this.buckets.clear();
-  }
 }

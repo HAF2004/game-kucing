@@ -33,6 +33,118 @@ export interface ClientLeaderboardData {
   currentPlayer?: ClientLeaderboardEntry;
 }
 
+interface ApiEnvelope<T> {
+  ok: boolean;
+  data?: T;
+  error?: { code?: string; message?: string };
+}
+
+export class ApiResponseError extends Error {
+  constructor(
+    message: string,
+    public readonly endpoint: string,
+    public readonly status: number
+  ) {
+    super(message);
+    this.name = 'ApiResponseError';
+  }
+}
+
+function safeResponsePreview(contentType: string, body: string): string {
+  const type = contentType.toLowerCase();
+  if (type.includes('html') || body.trimStart().startsWith('<')) {
+    return 'halaman HTML (isi disamarkan, ' + body.length + ' karakter)';
+  }
+  if (type.includes('json')) return 'JSON tidak lengkap atau rusak (' + body.length + ' karakter)';
+  return 'respons non-JSON (isi disamarkan, ' + body.length + ' karakter)';
+}
+
+/** Reads the body exactly once, validates the API envelope, and avoids leaking response contents. */
+export async function parseApiResponse<T>(response: Response, endpoint: string): Promise<T> {
+  const status = response.status;
+  const contentType = response.headers.get('content-type') || 'tanpa Content-Type';
+  let raw: string;
+  try {
+    raw = await response.text();
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new ApiResponseError('Permintaan ke server dibatalkan.', endpoint, status);
+    }
+    throw new ApiResponseError('Gagal membaca respons server (HTTP ' + status + ').', endpoint, status);
+  }
+
+  if (!raw.trim()) {
+    throw new ApiResponseError(
+      'Respons API kosong untuk ' + endpoint + ' (HTTP ' + status + ').',
+      endpoint,
+      status
+    );
+  }
+
+  const isJson = /(?:^|\/)json(?:\s*;|$)/i.test(contentType) || /\+json(?:\s*;|$)/i.test(contentType);
+  if (!isJson) {
+    throw new ApiResponseError(
+      'Respons API bukan JSON untuk ' + endpoint + ' (HTTP ' + status + ', ' + safeResponsePreview(contentType, raw) + ').',
+      endpoint,
+      status
+    );
+  }
+
+  let envelope: ApiEnvelope<T>;
+  try {
+    envelope = JSON.parse(raw) as ApiEnvelope<T>;
+  } catch {
+    throw new ApiResponseError(
+      'Format respons API tidak valid untuk ' + endpoint + ' (HTTP ' + status + ', ' + safeResponsePreview(contentType, raw) + ').',
+      endpoint,
+      status
+    );
+  }
+
+  if (!envelope || typeof envelope !== 'object' || typeof envelope.ok !== 'boolean') {
+    throw new ApiResponseError(
+      'Struktur respons API tidak valid untuk ' + endpoint + ' (HTTP ' + status + ').',
+      endpoint,
+      status
+    );
+  }
+  if (!response.ok || envelope.ok !== true) {
+    const backendMessage = typeof envelope.error?.message === 'string' && envelope.error.message.trim()
+      ? envelope.error.message.trim()
+      : 'Permintaan ke server gagal.';
+    throw new ApiResponseError(backendMessage + ' (HTTP ' + status + ').', endpoint, status);
+  }
+  if (!Object.prototype.hasOwnProperty.call(envelope, 'data')) {
+    throw new ApiResponseError(
+      'Data respons API tidak tersedia untuk ' + endpoint + ' (HTTP ' + status + ').',
+      endpoint,
+      status
+    );
+  }
+  return envelope.data as T;
+}
+
+export async function requestApiData<T>(
+  endpoint: string,
+  init: RequestInit,
+  fetcher: typeof fetch = fetch
+): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetcher(endpoint, init);
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new ApiResponseError('Permintaan ke server dibatalkan.', endpoint, 0);
+    }
+    throw new ApiResponseError(
+      'Tidak dapat terhubung ke server. Periksa koneksi internet lalu coba lagi.',
+      endpoint,
+      0
+    );
+  }
+  return parseApiResponse<T>(response, endpoint);
+}
+
 interface StoredDeviceCredentials {
   schemaVersion: 1;
   deviceId: string;
@@ -66,6 +178,7 @@ export function generateRunIdempotencyKey(playerId: string): string {
 
 export class PlayerApiClient {
   private credentials: StoredDeviceCredentials;
+  private sessionRequest: Promise<ClientPlayerProfile> | null = null;
 
   constructor() {
     this.credentials = this.loadOrInitializeCredentials();
@@ -146,9 +259,17 @@ export class PlayerApiClient {
   }
 
   /**
-   * Initializes or retrieves the persistent device profile from the SQLite backend.
+   * Initializes or retrieves the persistent device profile from the game API.
    */
   public async initSession(): Promise<ClientPlayerProfile> {
+    if (this.sessionRequest) return this.sessionRequest;
+    this.sessionRequest = this.createSession().finally(() => {
+      this.sessionRequest = null;
+    });
+    return this.sessionRequest;
+  }
+
+  private async createSession(): Promise<ClientPlayerProfile> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
@@ -156,7 +277,7 @@ export class PlayerApiClient {
       headers['X-Player-Token'] = this.credentials.authToken;
     }
 
-    const res = await fetch('/api/v1/players/session', {
+    const profile = await requestApiData<{ profile: ClientPlayerProfile; authToken: string }>('/api/v1/players/session', {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -165,24 +286,16 @@ export class PlayerApiClient {
       }),
     });
 
-    const json = await res.json();
-    if (!res.ok || !json.ok) {
-      throw new Error(json?.error?.message || 'Gagal memuat profil pemain.');
-    }
-
-    const { profile, authToken } = json.data as {
-      profile: ClientPlayerProfile;
-      authToken: string;
-    };
+    const { profile: playerProfile, authToken } = profile;
 
     this.saveCredentials({
       schemaVersion: 1,
-      deviceId: profile.device_id || this.credentials.deviceId,
-      playerId: profile.player_id,
+      deviceId: playerProfile.device_id || this.credentials.deviceId,
+      playerId: playerProfile.player_id,
       authToken: authToken || this.credentials.authToken,
     });
 
-    return profile;
+    return playerProfile;
   }
 
   /**
@@ -194,21 +307,14 @@ export class PlayerApiClient {
     }
 
     const playerId = this.credentials.playerId!;
-    const res = await fetch(`/api/v1/players/${encodeURIComponent(playerId)}/username`, {
+    return requestApiData<{ profile: ClientPlayerProfile }>(`/api/v1/players/${encodeURIComponent(playerId)}/username`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
         'X-Player-Token': this.credentials.authToken || '',
       },
       body: JSON.stringify({ username: newUsername }),
-    });
-
-    const json = await res.json();
-    if (!res.ok || !json.ok) {
-      throw new Error(json?.error?.message || 'Gagal memperbarui username.');
-    }
-
-    return json.data.profile as ClientPlayerProfile;
+    }).then((data) => data.profile);
   }
 
   /**
@@ -223,17 +329,10 @@ export class PlayerApiClient {
       params.set('playerId', this.credentials.playerId);
     }
 
-    const res = await fetch(`/api/v1/leaderboard?${params.toString()}`, {
+    return requestApiData<ClientLeaderboardData>(`/api/v1/leaderboard?${params.toString()}`, {
       method: 'GET',
       headers: { Accept: 'application/json' },
     });
-
-    const json = await res.json();
-    if (!res.ok || !json.ok) {
-      throw new Error(json?.error?.message || 'Gagal memuat papan peringkat.');
-    }
-
-    return json.data as ClientLeaderboardData;
   }
 
   /**
@@ -255,7 +354,12 @@ export class PlayerApiClient {
       await this.initSession();
     }
 
-    const res = await fetch('/api/v1/leaderboard/submit', {
+    return requestApiData<{
+      profile: ClientPlayerProfile;
+      leaderboardEntry: ClientLeaderboardEntry;
+      idempotentReplay: boolean;
+      newPersonalBest: boolean;
+    }>('/api/v1/leaderboard/submit', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -270,12 +374,5 @@ export class PlayerApiClient {
         durationMs: Math.max(450, Math.round(params.durationMs)),
       }),
     });
-
-    const json = await res.json();
-    if (!res.ok || !json.ok) {
-      throw new Error(json?.error?.message || 'Gagal mengirim skor ke server.');
-    }
-
-    return json.data;
   }
 }

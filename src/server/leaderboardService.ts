@@ -2,9 +2,9 @@ import {
   LeaderboardEntry,
   PlayerRepository,
   PublicPlayerProfile,
-} from './playerRepository';
-import { ServiceError } from './playerService';
-import { SecurityService } from './securityService';
+} from './playerRepository.js';
+import { ServiceError } from './playerService.js';
+import { SecurityService } from './securityService.js';
 
 export interface LeaderboardResponse {
   entries: LeaderboardEntry[];

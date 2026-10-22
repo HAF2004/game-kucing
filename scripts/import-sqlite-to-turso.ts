@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { createDatabase, runMigrations } from '../src/server/db';
+import { createDatabase, runMigrations } from '../src/server/db.js';
 
 interface PlayerRow {
   player_id: string; device_id: string; auth_token_hash: string; username: string;

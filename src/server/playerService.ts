@@ -1,5 +1,5 @@
-import { PlayerRepository, PublicPlayerProfile, RepositoryTransaction } from './playerRepository';
-import { SecurityService } from './securityService';
+import { PlayerRepository, PublicPlayerProfile, RepositoryTransaction } from './playerRepository.js';
+import { SecurityService } from './securityService.js';
 
 export class ServiceError extends Error {
   public readonly statusCode: number;

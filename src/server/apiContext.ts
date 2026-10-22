@@ -1,5 +1,5 @@
-import { createDatabase } from './db';
-import { createApiContext, type ApiContext } from './apiRouter';
+import { createDatabase } from './db.js';
+import { createApiContext, type ApiContext } from './apiRouter.js';
 
 let contextPromise: Promise<ApiContext> | undefined;
 

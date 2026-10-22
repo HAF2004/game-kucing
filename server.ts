@@ -1,8 +1,8 @@
 import path from 'node:path';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { createServer as createViteServer } from 'vite';
-import { createDatabase } from './src/server/db';
-import { createApiContext, handleApiRequest } from './src/server/apiRouter';
+import { createDatabase } from './src/server/db.js';
+import { createApiContext, handleApiRequest } from './src/server/apiRouter.js';
 
 async function startServer(): Promise<void> {
   const app = express();

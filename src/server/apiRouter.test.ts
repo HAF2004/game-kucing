@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createDatabase } from './db';
-import { createApiContext, handleApiRequest } from './apiRouter';
+import { createDatabase } from './db.js';
+import { createApiContext, handleApiRequest } from './apiRouter.js';
 
 function makeRequest(path: string, method = 'GET', body?: unknown, headers: Record<string, string> = {}): Request {
   const requestHeaders = new Headers(headers);

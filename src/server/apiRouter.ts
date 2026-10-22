@@ -1,8 +1,8 @@
 import type { Client } from '@libsql/client';
-import { LeaderboardService } from './leaderboardService';
-import { PlayerRepository } from './playerRepository';
-import { PlayerService, ServiceError } from './playerService';
-import { SecurityService } from './securityService';
+import { LeaderboardService } from './leaderboardService.js';
+import { PlayerRepository } from './playerRepository.js';
+import { PlayerService, ServiceError } from './playerService.js';
+import { SecurityService } from './securityService.js';
 
 export interface ApiContext {
   db: Client;

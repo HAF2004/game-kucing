@@ -1,4 +1,4 @@
-import { createDatabase, seedNpcLeaderboardEntries } from '../src/server/db';
+import { createDatabase, seedNpcLeaderboardEntries } from '../src/server/db.js';
 
 async function main(): Promise<void> {
   let db;

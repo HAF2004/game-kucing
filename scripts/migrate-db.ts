@@ -1,4 +1,4 @@
-import { createDatabase } from '../src/server/db';
+import { createDatabase } from '../src/server/db.js';
 
 async function main(): Promise<void> {
   let db;

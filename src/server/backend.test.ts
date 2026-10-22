@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { createDatabase, runMigrations, seedNpcLeaderboardEntries } from './db';
-import { PlayerRepository } from './playerRepository';
-import { PlayerService, ServiceError } from './playerService';
-import { LeaderboardService } from './leaderboardService';
-import { SecurityService } from './securityService';
+import { createDatabase, runMigrations, seedNpcLeaderboardEntries } from './db.js';
+import { PlayerRepository } from './playerRepository.js';
+import { PlayerService, ServiceError } from './playerService.js';
+import { LeaderboardService } from './leaderboardService.js';
+import { SecurityService } from './securityService.js';
 
 async function createTestEnv(options: { filename?: string; seedInitialRivals?: boolean } = {}) {
   const db = await createDatabase({

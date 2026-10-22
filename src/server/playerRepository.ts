@@ -1,5 +1,5 @@
 import type { Client, Transaction } from '@libsql/client';
-import type { RateLimitConfig } from './securityService';
+import type { RateLimitConfig } from './securityService.js';
 
 export interface PlayerRecord {
   player_id: string;

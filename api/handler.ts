@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { getApiContext } from '../src/server/apiContext';
-import { handleApiRequest } from '../src/server/apiRouter';
+import { getApiContext } from '../src/server/apiContext.js';
+import { handleApiRequest } from '../src/server/apiRouter.js';
 
 export const config = { api: { bodyParser: false } };
 const MAX_BODY_BYTES = 16 * 1024;

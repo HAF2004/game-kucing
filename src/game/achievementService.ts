@@ -86,7 +86,7 @@ export class AchievementService {
     }
 
     for (const def of ACHIEVEMENT_DEFINITIONS) {
-      if (def.event_type !== 'score_earned') continue;
+      if (def.event_type !== 'run_score_reached') continue;
 
       const currentEntry = this.state.achievements[def.achievement_id] ?? {
         progress: 0,

@@ -8,7 +8,7 @@ import {
 } from './achievementDefinitions';
 
 export const ACHIEVEMENTS_STORAGE_KEY = 'game.achievements.v2';
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 
 export interface StoredAchievementEntry {
   progress: number;
@@ -147,9 +147,34 @@ export class LocalProgressStore {
     const version = typeof obj.schemaVersion === 'number' ? obj.schemaVersion : 0;
 
     if (version < CURRENT_SCHEMA_VERSION) {
+      const migratedAchievements =
+        obj.achievements && typeof obj.achievements === 'object'
+          ? { ...(obj.achievements as Record<string, unknown>) }
+          : {};
+
+      // Score milestones used to accumulate `score_earned` across matches.
+      // Reset only unfinished milestone progress so old partial totals cannot
+      // make the next run start part-way to a power unlock. Already unlocked
+      // powers remain unlocked for existing players.
+      for (const def of ACHIEVEMENT_DEFINITIONS) {
+        if (def.event_type !== 'run_score_reached') continue;
+        const entry = migratedAchievements[def.achievement_id];
+        if (!entry || typeof entry !== 'object') continue;
+        const typedEntry = entry as Record<string, unknown>;
+        if (typedEntry.unlocked !== true) {
+          migratedAchievements[def.achievement_id] = {
+            ...typedEntry,
+            progress: 0,
+            unlocked: false,
+            unlocked_at: null,
+          };
+        }
+      }
+
       return {
         ...this.createDefaultState(),
         ...obj,
+        achievements: migratedAchievements,
         schemaVersion: CURRENT_SCHEMA_VERSION,
       };
     }

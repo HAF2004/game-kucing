@@ -83,31 +83,49 @@ test('1. Power unlock milestones at First Play, 100, 200, 300, 400, and 500 scor
   assert.equal(service.isRewardUnlocked('wapres'), true);
 });
 
-test('AchievementService grants each power only once and deduplicates replayed eventIds', () => {
+test('Score from separate matches does not stack toward a power unlock', () => {
   const storage = new MemoryStorage();
   const store = new LocalProgressStore(storage);
   const service = new AchievementService(store);
 
+  // Lifetime score is still recorded, but it must not unlock a score milestone.
   const first = service.recordEvent({
-    eventId: 'evt_score_100',
+    eventId: 'evt_score_60',
     type: 'score_earned',
-    amount: 100,
+    amount: 60,
   });
-  assert.equal(first.length, 1);
-  assert.equal(first[0].reward.reward_id, 'shield');
+  assert.equal(first.length, 0);
+  service.evaluateRunScore(60);
 
-  // Replaying the exact same eventId is ignored
+  // A second match must start from its own score, not from the previous 60.
   const replay = service.recordEvent({
-    eventId: 'evt_score_100',
+    eventId: 'evt_score_40',
     type: 'score_earned',
-    amount: 100,
+    amount: 40,
   });
   assert.equal(replay.length, 0);
+  assert.equal(service.evaluateRunScore(40).length, 0);
+  assert.equal(service.isRewardUnlocked('shield'), false);
 
-  const score200Ach = service
+  const score100Ach = service
     .getAchievements()
-    .find((a) => a.achievement_id === 'score_200')!;
-  assert.equal(score200Ach.progress, 100);
+    .find((a) => a.achievement_id === 'score_100')!;
+  assert.equal(score100Ach.progress, 60);
+
+  // Replaying the same idempotency key remains ignored for run-score events.
+  const unlocked = service.recordEvent({
+    eventId: 'evt_run_score_100',
+    type: 'run_score_reached',
+    amount: 100,
+  });
+  assert.equal(unlocked.length, 1);
+  assert.equal(unlocked[0].reward.reward_id, 'shield');
+  const replayedUnlock = service.recordEvent({
+    eventId: 'evt_run_score_100',
+    type: 'run_score_reached',
+    amount: 100,
+  });
+  assert.equal(replayedUnlock.length, 0);
 });
 
 test('Multiple score milestones unlock together, cycle the selected power, and persist across reloads', () => {
